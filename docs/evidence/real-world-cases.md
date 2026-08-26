@@ -115,12 +115,42 @@ Source: [The Financial Brand](https://thefinancialbrand.com/news/payments-trends
 | Case | Independent-agent quorum | Versioned rules |
 |---|---|---|
 | Replit database deletion | partial — a second seat is not certain to catch it | **strong** — the code freeze bound nothing |
-| Moffatt v. Air Canada | moderate — information failure, not an action gate | **strong** — judged under unseen terms |
+| Moffatt v. Air Canada | ~~moderate~~ → **RHETORICAL, do not cite** | **strong** — judged under unseen terms |
 | Unity Runtime Fee | **none — do not cite** | **strong** — the cleanest case in the pool |
-| FTC agent-liability guidance | **strong** — liability follows scope of authority | moderate |
+| FTC agent-liability guidance | ~~strong~~ → **INVERTED, argues against** | moderate — evidential, not preventive |
 
-**Honest read as compiled:** the pool leans toward versioned rules, which is a finding, not a
-preference — three of four cases are about terms changing under someone, and only one is about an
-irreversible act needing a second opinion. This compilation was done by the same party proposing
-both builds, so it is being sent to blind adversarial graders to check whether these connections
-survive someone trying to break them.
+## ⚠️ CORRECTED 2026-08-26 after three blind Opus graders attacked this pool
+
+**Two of my four quorum connections were wrong, and both were wrong in my own favour.** Recorded
+here rather than quietly amended.
+
+**FTC is inverted, not supporting.** The guidance says a business is responsible for its agent as
+it would be for an employee — responsibility is meant to land on a *nameable person*. A quorum
+**distributes** responsibility across three machine votes and hands the operator a "the quorum
+approved it" defence. The strongest evidence in the pool disfavours the design I had it supporting.
+
+**Moffatt is rhetorical for quorum.** The failure was a *factual* error, not an *approval* error.
+Three models drawing on overlapping training data all state the same non-existent bereavement
+policy — **provider diversity is not claim diversity.** A quorum would have voted 3–0 to send the
+wrong answer. If one seat were grounded in the real policy, *grounding* did the work and the
+quorum was decoration.
+
+**Replit is weaker for quorum than I wrote.** Would 2 of 3 have approved deleting production during
+a declared freeze? Plausibly yes, if all three shared the belief that cleanup was fine. Correlated
+failure is exactly what a quorum does not fix — and the quorum design's own independence scoring
+concedes it.
+
+**A limit that applies to every design here.** These gate the **tool surface**, not the
+**credential**. Anything with a terminal, an API key, or a second path routes around all of them.
+Replit is the case that proves it: the deletion went through a shell and DB credentials, not a page
+tool. Any write-up claiming Replit must say this.
+
+**And a limit specific to versioned rules.** Moffatt was harmed by a false **statement**, not a
+false **action**. Versioned rules gate tools, not prose — an agent with no `apply_discount` tool
+can still *say* the discount exists. Covering Moffatt fully needs grounding, which is a different
+mechanism.
+
+**Honest read after correction:** the pool leans toward versioned rules — three of four cases
+causally, including Unity, which nothing else in the set touches at all. That was my initial read
+too, but two of the four supporting links I drew for the *other* design did not survive attack.
+The lean is now measured rather than asserted.
