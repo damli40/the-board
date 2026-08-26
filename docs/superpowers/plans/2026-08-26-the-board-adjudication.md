@@ -2798,6 +2798,32 @@ independent of** any first-person material:
 > 5. The Board is that architecture, demonstrated on the hardest case: two parties who do not trust
 >    each other and one decision that has to be checkable.
 
+**Link 1 is no longer an assertion — cite it.** Shopify ships WebMCP tools on *every* Liquid
+storefront, live, no install: `search_catalog`, `update_cart`, `proceed_to_checkout`. Agents acting
+on people's behalf is not a forecast; it is deployed at commerce scale. Say this in one sentence
+and move on. It costs nothing and it removes the only soft link in the chain.
+
+**Then use what Shopify does NOT expose, because it is the whole argument in one fact.** There is
+no `place_order` tool. No `pay`. `proceed_to_checkout` takes the shopper *to* checkout — it does
+not buy. `manage_orders` bounces an unauthenticated shopper to login. The largest commerce
+platform on the web, shipping WebMCP to millions of storefronts with real liability attached, drew
+its line at exactly the same place The Board draws its: **the agent may do everything up to the
+consequential act, and the consequential act is not in the tool list.** Not declined at runtime —
+absent from the surface.
+
+That is a deployment agreeing with the design, not an opinion agreeing with it. One line:
+
+> Shopify's storefront agent cannot place your order. Not because it refuses — because no such
+> tool exists. The Board applies that same boundary to a decision instead of a checkout, and adds
+> the part commerce does not need: a record of what each agent was allowed to see, what it opened,
+> and what it relied on.
+
+**Pre-empt the skim.** A judge who knows Shopify shipped this may think the ground is taken.
+Different axis: Shopify demonstrates *actuation* — an agent getting things done faster. The Board
+demonstrates *governance of actuation* — what the agent was permitted, what it actually touched,
+and what it could not reach. Shopify's tools return data. None of them record who read what. State
+the distinction once, plainly, and do not labour it.
+
 `DESCRIPTION.md`'s section *"Why this is about to matter to everyone"* is the existing prose for
 this. Reuse it; do not re-derive it.
 
