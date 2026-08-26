@@ -1,10 +1,14 @@
-# As Agreed — design
+# The Board — design
 
 **Date:** 2026-08-26
 **Event:** The WebMCP Challenge (OpenAI). Closes **Sep 3 2026, 1:00pm PDT** = 9:00pm Lagos.
 **Status:** design. **GRADED — SELECTED.** Nothing built.
-**Also known as:** The Board v2. Same build as the landlord–tenant "Board", reframed around
-versioned rules. There have only ever been two candidates: this and Quorum.
+
+**Naming history**, so the grader tables below stay readable: this build was briefly called *As
+Agreed* mid-design. It is **The Board**, v2 — the same two-party build as the original
+landlord–tenant version, reframed around versioned rules. Where the grader scores below say "Board
+v1" they mean the turn-taking original; everything else means this. There were only ever two
+candidates: this and Quorum.
 
 > ✅ **Graded 2026-08-26 by three blind, shuffled-label adversarial Opus graders, each given a pool
 > of four documented real-world incidents. Unanimous first place.**
@@ -343,8 +347,8 @@ counterparty to defend against.
 
 ## 13. Open decisions
 
-1. **Name.** *As Agreed* is warm and states the claim. *Terms* is plainer and scans faster in a
-   gallery. Cheap now, expensive after the video.
+1. ~~Name.~~ **Resolved: The Board.** Repo and folder are `the-board`. Reopen only before the video
+   is cut — after that the name is in the artefact and changing it costs a re-record.
 2. **Agreement type.** Freelance milestone is the recommendation — universal, legible in eight
    seconds, no terms-of-service exposure. A contest or bounty is closer to the source experience
    and should be **avoided**: too identifying, and it would be shown to hackathon organisers.
