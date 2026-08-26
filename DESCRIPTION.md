@@ -82,6 +82,13 @@ WebMCP inverts it. The page declares the tools; the agents belong to the parties
 attaches to your frame, their Claude attaches to theirs, and neither is the platform's. The page's
 job is not to think. It is to hold the record and control who may do what.
 
+The fair objection is that each party could point their own MCP client at a shared server, and
+that's true — so the claim isn't that tool-passing is impossible elsewhere. It's narrower and it
+holds: **a tool server can hand out tools; it cannot make two people watch the same screen.** MCP
+has no rendering. Each party would see their own private transcript, which is two private views
+again — the exact thing this exists to end. Here the shared surface *is* the product, and in a
+dispute that is not a UI detail.
+
 Each party's panel is a separate browser origin, and tools are granted per origin. So side B's
 agent does not *decline* to file evidence as side A — **the tool is not in its list.** Origin
 isolation makes that structurally true, enforced by the browser, rather than a promise the app makes
