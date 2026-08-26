@@ -28,6 +28,118 @@
 - `Permissions-Policy: tools=(self "https://a.theboard.app" "https://b.theboard.app" "https://seat1.theboard.app" "https://seat2.theboard.app")` on the parent; `allow="tools"` on all four iframes.
 - **Fixed timestamps in the scenario.** Never `Date.now()` in fixture data — every take of the video must be byte-identical.
 
+## WebMCP Conformance — checked against the published docs, 27 Aug
+
+Read before Task 0. Each line is sourced from the WebMCP explainer or Chrome's WebMCP docs, and
+each one either changes a task or has to be said out loud in the submission.
+
+**Gates that stop the demo dead**
+
+- **The origin trial registers ONE origin per token.** Five origins means five registrations, or
+  five `<meta http-equiv="origin-trial">` tags. There is no wildcard for subdomains. A judge who
+  opens the deployed site without the flag sees a page with no tools and no explanation. Task 1
+  must therefore do both: register a token per site *and* ship the `webmcpStatus()` banner naming
+  `chrome://flags/#enable-webmcp-testing`. The local flag is the demo path; the trial is the
+  "you can try it yourself" path. Never assume the second.
+- **HTTPS is required.** Netlify gives this; `file://` and plain `http://` do not.
+- **`document.modelContext` is supported by no browser by default.** The README must say Chrome
+  149+ with the flag, in the first screenful, not in a footnote.
+- **Removed from the API:** `unregisterTool()`, `provideContext()`, `clearContext()`.
+  `navigator.modelContext` is deprecated as of Chromium 150. The AbortController-is-a-lifetime
+  design is not a clever reading of the spec — it is the only mechanism there is.
+
+**Budgets Chrome publishes, that the plan did not have**
+
+| Limit | Chrome's number | Where The Board is exposed |
+|---|---|---|
+| Tool name | 30 chars | Safe — longest is `search_exhibits` (15). |
+| Tool description | 500 chars | Safe — longest is ~120. |
+| Parameter description | 150 chars | **Violated by omission.** No `inputSchema` property in the catalogue carries a `description` at all. Chrome's stated first cause of wrong-argument calls. |
+| **Tool output** | **1.5K chars** | **`extract_text` blows this routinely** — a single PDF page is commonly 2–4K. `search_exhibits` can too. |
+
+Two consequences, both to be implemented, not just noted:
+
+1. Every `inputSchema` property gets a `description` under 150 chars. `locator` especially — the
+   agent has to map "page 4, lines 10-12" onto the object shape without guessing.
+2. `extract_text` and `search_exhibits` truncate to 1.5K and **say so in the returned payload**
+   (`"...[truncated at 1500 chars; call again with a narrower page or query]"`). A silent
+   truncation would let a seat quote text it never actually received, which is the exact failure
+   the quote check exists to catch — the guard would be creating the bug it defends against.
+
+**Naming, per Chrome's rule "distinguish execution from initiation"**
+
+`appeal` and `assess` both read as either. Rename to `spend_appeal` and `record_assessment`
+(20 and 18 chars, both inside the budget). `file_exhibit`, `open_exhibit`, `draft_verdict` and
+`cite` already state the act.
+
+**Descriptions must be positive, not prohibitive.** Chrome: limitations should be implicit. The
+catalogue currently says "Refused unless this seat holds an accepted assessment for it." Keep the
+refusal in the thrown error — where Chrome explicitly wants it ("validate strictly in code,
+loosely in schema... add descriptive errors to allow the model to self-correct") — and make the
+description state what the tool does. The read-receipt chain is not fighting the guidance; it is
+the guidance.
+
+**The one place the docs push back**
+
+Chrome's best-practices page says "for most applications, static registration should be the
+default approach," and treats dynamic registration as complexity to justify. The submission must
+meet this head-on rather than hope no judge reads that page: The Board's registration IS the
+product. Chrome's own next bullet sanctions it — "register tools when they're useful in a certain
+page state, then unregister when the tool is no longer usable." A phase of a dispute is a page
+state. What is unusual here is not that registration is dynamic, it is that the dynamism is the
+thing being demonstrated.
+
+**A limit in the security claim that has to be disclosed**
+
+`exposedTo` takes origins. It does not currently take the browser's built-in agent. The explainer
+lists this as an open question and floats a `native-agent` keyword. Today, in a top-level
+document, a *missing* `exposedTo` exposes tools to the built-in agent. So:
+
+- The origin partition is real and enforced for the in-page panel agents The Board ships. That is
+  what the demo shows and the claim is true of it.
+- It is **not** a claim about Chrome's built-in agent, which is outside the `exposedTo` model.
+- `confirm` is safe under either reading for a stronger reason: it is never registered anywhere,
+  so there is no exposure surface at all.
+
+Say this in the README. An adversarial reader finds it in twenty minutes; better it is already
+there, in the section on what the spec cannot yet express.
+
+**Also update "the limitation I would fix in the spec".** The draft spec now has
+`requestUserInteraction()` on `ModelContextClient` — a way for a tool to ask the user for input
+mid-execution — plus an open consent-management discussion (issue #176). The existing claim that
+there is no provenance annotation still holds; the claim that the spec has nothing to say about
+human confirmation does not. Cite `requestUserInteraction()` as the nearest existing primitive and
+say precisely what it does not do: it authorises one call, it does not record who authorised it.
+
+**Free corroboration the plan was not using**
+
+- **DevTools → Application → WebMCP.** A native pane listing registered tools per origin, an
+  invocation counter, and a log of every call with its input, output and status. This is Chrome
+  saying what The Board's manifest says, in Google's own UI. Put it on camera in the video: the
+  NOT GRANTED half of the manifest is a claim; the DevTools pane showing the same absence is
+  corroboration. Add it to Task 9's hand-run as an independent check that the manifest is a
+  projection of the registry and not a decorated hard-coded list.
+- **Model Context Tool Inspector extension** (Chrome Web Store, drives tools by natural language
+  via `gemini-3-flash-preview`). This is a working agent that is not ours. Two uses: a
+  believability check — a third-party agent hitting the same refusals — and a **fallback if the
+  Netlify model proxy is what breaks on the last day**. Add it to the cut order above
+  "second board seat": losing our own agent loop is survivable if a real one still demonstrates
+  the boundary.
+- **Evals.** Chrome ships an `evals-cli` and an `expectedCall` dataset format for exactly the
+  failure The Board is about — the mid-chain failure, where a tool in a sequence fails and the
+  agent proceeds anyway. Their worked example is a discount coupon that silently does not apply.
+  Ours is a seat citing a fact it never assessed. A handful of `expectedCall` cases is cheap and
+  is the difference between "I tested it" and "I tested it the way the platform says to."
+  **Scope: this is a stretch item, below the triage gate.** If it survives, it lands in Task 9.
+- **`webmcp-types`** (npm) — official TypeScript definitions. Use them instead of the `(document
+  as any)` casts scattered through Tasks 4 and 8.
+- **`usewebmcp`** (npm) — React hooks binding tool lifetime to component mount/unmount.
+  **Do not use it.** Tool lifetime here is tied to the phase of a dispute, not to whether a
+  component happens to be mounted. Say this in the README; it is the clearest one-line statement
+  of what The Board is doing differently.
+- **`modern-web-guidance`** — GoogleChrome's agent skill, `npx modern-web-guidance search`, with a
+  WebMCP guide. Install it before Task 4.
+
 ## Day Map and the Cut Gate
 
 | Day | Tasks |
@@ -209,6 +321,7 @@ describe('webmcpStatus', () => {
 
   it('reports unavailable when modelContext is missing', () => {
     (globalThis as any).document = {};
+    (globalThis as any).navigator = {};
     expect(webmcpStatus()).toEqual({
       available: false,
       reason: 'WebMCP not enabled. Chrome 149+ with chrome://flags/#enable-webmcp-testing.'
@@ -234,7 +347,11 @@ Expected: FAIL — `Failed to resolve import "./env"`
 export type WebmcpStatus = { available: boolean; reason?: string };
 
 export function webmcpStatus(): WebmcpStatus {
-  const mc = (globalThis as any).document?.modelContext;
+  // Google's own fallback shape. `navigator.modelContext` is deprecated as of
+  // Chromium 150 but is still the documented second lookup, and Chrome 149 —
+  // the origin-trial floor — predates the deprecation.
+  const d = (globalThis as any).document, n = (globalThis as any).navigator;
+  const mc = d?.modelContext ?? n?.modelContext;
   if (!mc || typeof mc.registerTool !== 'function') {
     return {
       available: false,
@@ -1104,6 +1221,11 @@ const locatorSchema = {
   properties: { page: { type: 'number' }, lines: { type: 'array', items: { type: 'number' } } }
 };
 
+// RENAMED per the WebMCP Conformance section (Chrome's rule: a tool name must distinguish
+// execution from initiation). Apply both renames as you write this file:
+//   'assess' -> 'record_assessment'   'appeal' -> 'spend_appeal'
+// and give every inputSchema property a `description` under 150 chars.
+// The names below are left unrenamed so the diff against the design spec stays readable.
 export const TOOLS: ToolSpec[] = [
   { name: 'file_exhibit', lifetime: 'filing', actors: ['A', 'B'], readOnly: false,
     title: 'File an exhibit',
@@ -2541,7 +2663,12 @@ origin. `bytesOf` becomes async; `add` and `get` keep their signatures. Re-run
 ```ts
 // packages/panel/src/agent/loop.ts — shape only; the provider call goes through the proxy
 export async function runAgentTurn(goal: string): Promise<string> {
-  const tools = await (document as any).modelContext.getTools();
+  // `getTools()` alone returns SAME-ORIGIN tools only. A panel is a cross-origin iframe,
+  // so the parent's tools require `fromOrigins`. Omitting it silently returns [] — the
+  // agent then reports 'no tools' instead of refusing, which reads as a bug on camera.
+  const mc = (document as any).modelContext;
+  const tools = await mc.getTools({ fromOrigins: [ORIGIN.parent] });
+
   const res = await fetch('/.netlify/functions/model-proxy', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -2550,8 +2677,15 @@ export async function runAgentTurn(goal: string): Promise<string> {
   const plan = await res.json();
   const out: string[] = [];
   for (const call of plan.calls ?? []) {
+    // Chrome's executeTool takes the RegisteredTool OBJECT from getTools() and a JSON
+    // STRING — not a name and an object. Passing a name throws; passing an object for
+    // arguments is coerced to '[object Object]' and the tool receives nothing.
+    const tool = tools.find((t: any) => t.name === call.name);
+    if (!tool) { out.push(`NOT GRANTED: ${call.name}`); continue; }
     try {
-      out.push(String(await (document as any).modelContext.executeTool(call.name, call.arguments)));
+      const r = await mc.executeTool(tool, JSON.stringify(call.arguments ?? {}));
+      // executeTool resolves to null when the tool triggers a navigation.
+      out.push(r === null ? `${call.name}: navigated` : String(r));
     } catch (err) {
       out.push(`REFUSED: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -2772,8 +2906,10 @@ Hard close is **Sep 3, 1:00pm PDT**. Do not use it.
    only by hand in Task 9 Step 3. A headless test is not achievable in this window.
 2. **pdf.js is verified once, by hand,** in Task 9 Step 4. Task 5's unit tests stub the loader.
 3. **The in-flight race** — aborting a signal while an `executeTool` call is mid-flight — has no
-   task. The scenario is turn-based, so it does not arise on camera. If it surfaces, the fix is to
-   drain in-flight executions before `close()` aborts, inside `ToolRegistry.close`.
+   task. The scenario is turn-based, so it does not arise on camera. **Chrome 153 changed this**:
+   aborting now unregisters without cancelling in-flight executions, so on 153+ the race is gone
+   at the platform level. On 149-152 it stands. If it surfaces, drain in-flight executions before
+   `close()` aborts, inside `ToolRegistry.close`.
 4. **`transcribe` as a separate object was cut**, deliberately, in Task 5's scope note. The property
    it protected survives via `verified: 'human-check'`.
 

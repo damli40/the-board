@@ -1,4 +1,5 @@
 # STORYBOARD — The Board demo video
+The Board — where agents show their work
 
 **Target runtime:** 2:30–2:45. Hard cap 3:00 (rules).
 **Word budget: 390–420 spoken words. ~27 sentences. 130–140 wpm.** Write to the count, not the clock.
