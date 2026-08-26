@@ -159,13 +159,18 @@ It costs nothing on the other three criteria, and it removes the one fork in the
 good branch.
 
 ```
-asagreed.app                     the shared record. Owns rules, versions, moves.
+theboard.app                     the shared record. Owns rules, versions, moves.
   │                              Registers each side's tools with exposedTo scoped
   │                              to that side's agent origin only.
   │
-  ├── <iframe allow="tools" src="client.asagreed.app">      client's agent panel
-  └── <iframe allow="tools" src="contractor.asagreed.app">  contractor's agent panel
+  ├── <iframe allow="tools" src="client.theboard.app">      client's agent panel
+  └── <iframe allow="tools" src="contractor.theboard.app">  contractor's agent panel
 ```
+
+⚠️ **Hosting note.** Subdomains are separate origins, which is what makes the isolation real — but
+Netlify serves one site per domain, so this is **three Netlify sites** (or one site plus two
+subdomain sites on a custom domain), not three paths on one. Confirm this on day 1; it is the kind
+of detail that eats an afternoon if discovered on day 4.
 
 One tab, one frame tree, two origin-isolated agent panels, both parties at the table.
 
