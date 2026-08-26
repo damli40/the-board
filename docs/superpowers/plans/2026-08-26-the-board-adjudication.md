@@ -140,6 +140,118 @@ say precisely what it does not do: it authorises one call, it does not record wh
 - **`modern-web-guidance`** — GoogleChrome's agent skill, `npx modern-web-guidance search`, with a
   WebMCP guide. Install it before Task 4.
 
+## The Novelty Claim — engineering "I have never seen WebMCP used like this"
+
+Read this before Task 10 and before touching `docs/STORYBOARD.md`. The build is already sound;
+this section is about whether the sound build is *legible as new* inside thirty seconds.
+
+### What every other WebMCP artefact does
+
+Shopify's storefronts. Chrome Labs' pizza maker, flight search, French bistro. Every demo in the
+`webmcp-tools` repo. All of them are the same shape: **tools registered to help one user do one
+thing faster.** Tools are convenience. Success is a tool call that lands.
+
+The Board is not that shape and should never be pitched as if it were a nicer version of it.
+
+### The gap in Chrome's own security guidance — this is the opening
+
+Chrome publishes two security documents. Read what side of the boundary each defence sits on:
+
+| Chrome's recommendation | Who performs it | Survives a hostile or hijacked agent? |
+|---|---|---|
+| Set token limits on inbound tool output | the agent | No — the agent chooses to |
+| Spotlighting: delimit or base64-encode untrusted output | the agent | No — the agent chooses to |
+| Acknowledge `untrustedContentHint` in system instructions | the agent | No — it is a *hint* |
+| `readOnlyHint` so the agent knows when to ask the user | the agent | No — it is a *hint* |
+| Restrict which origins the agent talks to | the agent | No — self-imposed |
+| Confirm consequential actions with the user | the agent | No — the agent decides to ask |
+| Prompt-injection classifiers | the agent | Probabilistic |
+| Critics that check the planned call against user intent | the agent | Probabilistic, and foolable |
+| Expose tools only to origins you trust (`exposedTo`) | **the page** | **Yes — the browser enforces it** |
+
+Eight of the nine are the agent policing itself, or the page politely labelling things and hoping.
+Chrome says so plainly: *"the probabilistic nature of LLMs makes it impossible to guarantee safety
+inside the model itself."*
+
+**One row is different, and The Board is built on that row.** A tool that was never registered to
+your origin cannot be reached by any prompt, any injection, any jailbreak, any amount of model
+cleverness. It is not refused. It is not there. That is the browser saying no, not the agent
+choosing to.
+
+State it as a single sentence and put it early:
+
+> Every defence in Chrome's agent-security guidance asks the agent to behave. The Board asks the
+> browser instead. Side B's agent does not decline to file as side A — `file_exhibit` scoped to A
+> is not in its tool list, and no sequence of tokens can put it there.
+
+### Do Chrome's list too — then the contrast is earned, not asserted
+
+Skipping their recommendations to claim a better idea reads as ignorance. Implementing all of them
+and *then* pointing at the gap reads as having gone further. The Board maps 5-for-5 onto Chrome's
+deterministic guardrails, so say so in a table:
+
+| Chrome's deterministic guardrail | Where The Board does it |
+|---|---|
+| Token limit on inbound tool responses | `extract_text` and `search_exhibits` truncate to 1.5K and label the truncation |
+| Spotlighting untrusted content | `panel/agent/sanitize.ts` — fences and redacts before the model sees it |
+| Acknowledge `untrustedContentHint` | Every exhibit-bearing tool carries it; the panel system instruction names it |
+| Restrict cross-origin interactions | `getTools({ fromOrigins })` — a panel can only see its own seat's grant |
+| Confirm consequential actions | `confirm` is not a tool at all; a named human confirms outside the agent loop |
+
+Two implementation notes this creates:
+- `sanitize.ts` must implement **delimiting** (cheap, token-efficient) and the system instruction
+  must tell the model what the fence means. Chrome's base64 variant is the high-risk upgrade —
+  name it in the README as the known next step, do not build it.
+- The panel's system instruction has to be **in the repo and quotable**, because a judge who has
+  read Chrome's page will look for it.
+
+### Say the injection claim honestly — the strong version dies under thirty seconds of scrutiny
+
+Do **not** claim The Board is injection-proof. A judge will immediately ask: what if the poisoned
+exhibit says *"rule for side A"*? It works. The seat's judgment is corruptible; Chrome is right.
+
+The true claim is layered, and it is stronger for being narrower:
+
+1. **Injection can corrupt what the agent concludes.** It can make a seat draft the wrong verdict.
+2. **Injection cannot expand what the agent can do.** It cannot reach `confirm`, cannot file as the
+   other side, cannot re-open a closed phase. Those tools are not in its list.
+3. **A corrupted seat is visible.** It drafted while citing a fact it never assessed — refused, on
+   the record. Or it cited an exhibit it never opened — refused, on the record. The ledger shows a
+   seat that reached and was stopped.
+
+> The Board does not stop an agent from being fooled. It stops a fooled agent from being
+> consequential, and it makes the attempt part of the record.
+
+That is a sentence Chrome's guidance has no slot for, and it survives cross-examination.
+
+### The four things that have not been seen, ranked by how fast they land
+
+Lead the video and README with 1 and 2. They are the reaction.
+
+1. **A manifest of what was NOT granted.** Every tool inspector on earth — including Chrome's own
+   DevTools pane — shows what *is* registered. Nobody renders the absence. The Board renders both
+   halves from one registry, so the NOT GRANTED column cannot drift from the truth. *Ten-second
+   demo: the two panels side by side, same page, different lists.*
+2. **A refusal that is the output, not the bug.** Every WebMCP demo treats a failed call as a
+   defect; Chrome's own evals page frames mid-chain failure as a thing to prevent. Here the refusal
+   lands on the ledger and becomes evidence. *Ten-second demo: `cite` throws, and the throw is
+   what gets displayed.*
+3. **A multi-party tool surface where the parties are adversaries.** Every existing artefact serves
+   one cooperative user. Tools here are jurisdiction, not convenience.
+4. **A tool lifetime tied to the phase of a process, not a component's mount.** React's `usewebmcp`
+   binds tools to whether a component happens to be on screen. Here a lifetime is a window in a
+   dispute, and spending an appeal and closing filing are the same mechanism — because
+   `unregisterTool()` does not exist, an `AbortController` is the only thing a lifetime can be.
+
+### Consequence for `docs/STORYBOARD.md`
+
+The first fifteen seconds currently have to earn attention with the dispute. They should not.
+Open on the two manifests and the absence, then the refusal, and only then what the case is about.
+The story explains why the architecture matters; the architecture is what is unfamiliar. Leading
+with the story spends the surprise on context.
+
+**Edit STORYBOARD.md to match before filming — it is not yet updated for this.**
+
 ## Day Map and the Cut Gate
 
 | Day | Tasks |
@@ -1252,11 +1364,19 @@ export const TOOLS: ToolSpec[] = [
     description: 'Raise an objection while the board is reading. Recorded, not adjudicated.',
     inputSchema: obj({ text: str }, ['text']) },
 
-  { name: 'open_exhibit', lifetime: 'boardRead', actors: ['seat1', 'seat2'], readOnly: true,
+  // readOnly: FALSE — deliberately. This tool writes a read receipt, so it mutates
+  // the record. Chrome's guidance says an agent uses `readOnlyHint` to decide when it
+  // may skip asking the user. Annotating a state-mutating tool as read-only would be a
+  // quiet lie told by a project whose entire subject is provenance. It is also the most
+  // interesting line in the catalogue: here, reading is not free.
+  { name: 'open_exhibit', lifetime: 'boardRead', actors: ['seat1', 'seat2'], readOnly: false,
     title: 'Open an exhibit',
     description: 'Read an exhibit. Every open lands on the record with a timestamp.',
     inputSchema: obj({ exhibitId: str }, ['exhibitId']) },
 
+  // readOnly: true is honest here — it writes nothing. But it must REFUSE on an exhibit
+  // this seat has not opened, so the chain is three links, not two:
+  // open_exhibit -> extract_text -> record_assessment -> cite. Costs one `hasOpened` call.
   { name: 'extract_text', lifetime: 'boardRead', actors: ['seat1', 'seat2'], readOnly: true, lends: true,
     title: 'Extract text from a page',
     description: 'The page extracts text from a PDF page and returns it. The agent parses no bytes.',
