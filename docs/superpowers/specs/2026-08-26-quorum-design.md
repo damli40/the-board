@@ -128,6 +128,12 @@ parent via `exposedTo: ["https://quorum.app"]`.
 The parent discovers seat tools with `getTools({ fromOrigins: [...seat origins] })` and drives a
 seat by `executeTool(seatTool, input)`, which runs inside that seat's own JavaScript context.
 
+**API keys.** Each seat runs its agent loop in the browser, so no provider key can live in client
+code. Each seat origin gets one serverless function that proxies to its provider, holds the key
+server-side, and is rate-limited. Three origins, three functions, three keys. This is a day-1 task,
+not an afterthought — it is the difference between a demo and a leaked key in a public repo, and
+the repo must be public to qualify.
+
 **Why iframes at all, honestly.** Two graders warned that reaching for `exposedTo` purely to touch
 a spec feature is *stacking*, which the framework penalises. The defensible reason: a seat that
 can see the other seats' verdicts is not an independent seat. Origin isolation is how you get
@@ -202,9 +208,11 @@ collapse is the drama. Neither is a dashboard.
 
 **In, for 8 days:**
 
-- One real consequential action. Not a mock. A real email to a real address, or a real HTTP POST
-  to something that genuinely cannot be undone. Every grader independently said: *if the
-  irreversible action is mocked, the stakes are mocked.*
+- **One real consequential action: sending a real email to a real address.** Not a mock. Chosen
+  over a grant submission for three reasons — it is genuinely unsendable once sent, the recipient's
+  inbox proves it happened on camera, and it carries no terms-of-service problem (several funding
+  portals explicitly forbid automated submission, which a judge could hold against the entry).
+  Every grader independently said: *if the irreversible action is mocked, the stakes are mocked.*
 - Three seat origins, three providers, one in-page agent loop each.
 - The independence scorer with the three collapse rules from §5.
 - The policy panel: threshold + provider allowlist.
@@ -261,8 +269,9 @@ copy stated, and that four-hour error is exactly the kind of latent fault this p
 
 1. **The name.** "Quorum" is plain and legible but reads faintly crypto. Alternative: *Second
    Opinion*, which states the pitch. Cheap to change now, expensive after the video.
-2. **What the real irreversible action is.** A grant submission is the domain you operate in
-   (rule 6 = 2). Needs to be something genuinely one-shot that can fire on camera.
+2. ~~What the real irreversible action is.~~ **Resolved in §9: a real email.** Reopen only if you
+   have a funding portal whose terms permit automated submission and whose deadline falls inside
+   the window — that would lift rule 6 but nothing else.
 3. **Whether the seats' providers can include a non-OpenAI model.** Provider diversity is the
    whole independence claim, but this is OpenAI's event. Recommendation: include them, and say
    plainly that independence requires it — that reads as integrity, not disloyalty.
