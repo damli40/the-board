@@ -1,3 +1,9 @@
+> ⛔ **SUPERSEDED — DO NOT EXECUTE.** This plan builds the abandoned v1 concept (versioned rules,
+> moves, supersession). The product is now open adjudication: exhibits, facts, two board seats,
+> assessments with a machine-checked quote. Executing this plan builds the wrong product
+> competently. Kept only as the record of what changed.
+> **Live plan: `2026-08-26-the-board-adjudication.md`.**
+
 # The Board — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
