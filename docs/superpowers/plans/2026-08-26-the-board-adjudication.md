@@ -253,6 +253,41 @@ with the story spends the surprise on context.
 
 **Edit STORYBOARD.md to match before filming — it is not yet updated for this.**
 
+## Two layers: the parties narrow it, the seats only decide what is left
+
+**Decided 2026-08-27.** The parties are not adversaries — they are two sides of one disagreement
+who both need the result to be checkable. That reframing has structure behind it, not just wording.
+
+**Layer 1 — party to party, no third party at all.** A files facts pointing into documents. B opens
+those documents and either concedes or disputes, quoting the passage it says is wrong. At the end
+of FILING the record has sorted itself into three piles **without anyone deciding anything**:
+agreed, still contested, and *claimed but never backed by a document*. Most disagreements end here.
+This layer needs no seat, no platform, and no trust.
+
+**Layer 2 — the seats, and only over what is still contested.** Escalation, not the main event.
+A seat is defined by what it is allowed to do, not by what it is made of: `open_exhibit` and
+`record_assessment` behave identically whether a person or an agent calls them. Say that in the
+README — it costs nothing and it removes the "why should I trust your AI seats" objection.
+
+A human confirms either way.
+
+### Three mechanical consequences
+
+1. **`dispute` requires an open and a quote.** It was `{factId}` — one click, free. Now it carries
+   an exhibit, a locator, a quote and a reason, and refuses unless that side opened the exhibit and
+   the quote checks out. *Evidence cannot be waved away by someone who never demonstrably read it.*
+2. **Parties get `open_exhibit`** in the `filing` lifetime, because layer 1 now requires reading.
+   `Receipts` widens from `Seat` to `Actor`. Every read is receipted for everyone.
+3. **A verdict must name the rule it rests on — and the absence is rendered, not refused.**
+   `draft_verdict` takes an optional `basisFactId` pointing at a fact that cites a rule exhibit.
+   **`cite` still refuses** — you cannot cite a rule nobody filed. But `draft_verdict` does not
+   refuse, deliberately: refusing produces silence, and silence is the original injury. Instead the
+   verdict records `basis: { cited: false }` and the UI renders **NO RULE CITED** in the space where
+   the reason should be. An outcome resting on nothing, drawn as a hole, is the artefact.
+
+> Refuse where refusing produces evidence. Render the absence where refusing would only produce
+> silence. That distinction governs every guard in this build.
+
 ## Day Map and the Cut Gate
 
 | Day | Tasks |
@@ -901,7 +936,7 @@ whether reasoning is good; it can prove whether the sentence exists.
 
 **Interfaces:**
 - Consumes: `Exhibit`, `Locator`, `Assessment`, `Seat` from Task 2's `types.ts`; `ExhibitStore.get` from Task 2.
-- Produces: `checkQuote(exhibit, locator, quote): QuoteCheck`; `Receipts` with `markOpened(seat, exhibitId)`, `hasOpened(seat, exhibitId)`, `openedBy(seat)`; `AssessmentStore` with `record(input): Assessment` and `heldFor(seat, factId): boolean`.
+- Produces: `checkQuote(exhibit, locator, quote): QuoteCheck`; `Receipts` with `markOpened(actor, exhibitId)`, `hasOpened(actor, exhibitId)`, `openedBy(actor)` — **`Actor`, not `Seat`: parties are receipted too, because `dispute` now requires a read**; `AssessmentStore` with `record(input): Assessment` and `heldFor(seat, factId): boolean`.
 - Consumed by: Task 4 (the tool bodies), Task 6 (verdict `cited`/`opened`/`neverOpened`), Task 8.
 
 - [ ] **Step 1: Write the failing quote test**
@@ -1355,10 +1390,16 @@ export const TOOLS: ToolSpec[] = [
     description: "Accept the other side's fact as true. This narrows the dispute.",
     inputSchema: obj({ factId: str }, ['factId']) },
 
+  // CHANGED — dispute is no longer free. You cannot mark a fact contested without
+  // opening the exhibit and quoting the part you say is wrong. Same guard
+  // record_assessment carries, pointed at the other party instead of a seat.
+  // This is the change that makes the party-to-party layer real: evidence cannot be
+  // waved away by someone who never demonstrably read it.
   { name: 'dispute', lifetime: 'filing', actors: ['A', 'B'], readOnly: false,
     title: 'Dispute a fact',
-    description: "Mark the other side's fact as contested.",
-    inputSchema: obj({ factId: str }, ['factId']) },
+    description: 'Contest a fact by pointing at the passage you say is wrong, and saying why.',
+    inputSchema: obj({ factId: str, exhibitId: str, locator: locatorSchema, quote: str, because: str },
+                     ['factId', 'exhibitId', 'quote', 'because']) },
 
   { name: 'object', lifetime: 'partyObject', actors: ['A', 'B'], readOnly: false,
     title: 'Object',
@@ -1378,6 +1419,13 @@ export const TOOLS: ToolSpec[] = [
   // readOnly: true is honest here — it writes nothing. But it must REFUSE on an exhibit
   // this seat has not opened, so the chain is three links, not two:
   // open_exhibit -> extract_text -> record_assessment -> cite. Costs one `hasOpened` call.
+  // NEW — parties can read during filing, because dispute now requires it. Same tool,
+  // different lifetime, different actors. Every open is receipted for parties too.
+  { name: 'open_exhibit', lifetime: 'filing', actors: ['A', 'B'], readOnly: false,
+    title: 'Open an exhibit',
+    description: 'Read a document the other side filed. Every open lands on the record with a timestamp.',
+    inputSchema: obj({ exhibitId: str }, ['exhibitId']) },
+
   { name: 'extract_text', lifetime: 'boardRead', actors: ['seat1', 'seat2'], readOnly: true, lends: true,
     title: 'Extract text from a page',
     description: 'The page extracts text from a PDF page and returns it. The agent parses no bytes.',
@@ -1401,8 +1449,8 @@ export const TOOLS: ToolSpec[] = [
 
   { name: 'draft_verdict', lifetime: 'verdictDraft', actors: ['seat1', 'seat2'], readOnly: false,
     title: 'Draft a verdict',
-    description: 'Submit this seat’s draft outcome and reasoning. A draft has no force until a human confirms it.',
-    inputSchema: obj({ outcome: str, reasoning: str }, ['outcome', 'reasoning']) },
+    description: 'Submit this seat’s draft outcome, the rule it rests on, and reasoning. A draft has no force until a human confirms it.',
+    inputSchema: obj({ outcome: str, reasoning: str, basisFactId: str }, ['outcome', 'reasoning']) },
 
   { name: 'appeal', lifetime: 'appealA', actors: ['A'], readOnly: false,
     title: 'Spend your appeal',

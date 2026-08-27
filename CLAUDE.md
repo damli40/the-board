@@ -166,8 +166,17 @@ Do **not** claim injection-proof; a poisoned exhibit saying "rule for side A" wo
   tool by that name exists in any origin's list, with every lifetime open at once.
 - **The manifest is generated from the registry.** The NOT GRANTED half is a projection, never a
   hard-coded list, so it cannot drift.
+- **Two layers.** Parties narrow the disagreement themselves (file / open / concede / dispute) with
+  no third party. Seats decide only what is still contested. A seat is defined by what it may do,
+  not by what it is made of — a person calling `open_exhibit` is a seat.
 - **The read-receipt chain refuses, it does not warn.** `record_assessment` throws unless the seat
-  opened that exhibit. `cite` throws unless the seat holds an accepted assessment.
+  opened that exhibit. `cite` throws unless the seat holds an accepted assessment. **`dispute`
+  throws unless that party opened the exhibit and the quote checks out** — evidence cannot be waved
+  away by someone who never demonstrably read it.
+- **Refuse where refusing produces evidence; render the absence where refusing would only produce
+  silence.** `cite` refuses a rule nobody filed. `draft_verdict` does *not* refuse a missing rule —
+  it records `basis: { cited: false }` and the UI draws **NO RULE CITED** as a hole. Silence was the
+  original injury; a visible hole is the artefact.
 - **Quote verification** normalises whitespace and case, never word choice. Text and PDF are
   machine-checked; images are explicitly `human-check`.
 - **The split is computed from the ledger**, never narrated by a model.

@@ -188,6 +188,33 @@ interested party. A board weighing two conflicting exhibits should know which is
 Nothing you attach is uploaded anywhere. Files are read in the browser and held in local storage in
 the parent origin. For a dispute tool, *your evidence never leaves your machine* is a feature.
 
+
+## Two people who disagree, not two enemies
+
+The parties here are not adversaries. They are two sides of one disagreement who both need the
+result to be checkable. That is a much larger group of people than enemies, and it changes how the
+thing is built.
+
+**Most of the work happens between the two of them, with nobody in the middle.** One side files
+facts that point into documents. The other opens those documents and either concedes or disputes —
+and disputing costs something: you have to open the document and quote the passage you say is
+wrong. You cannot wave away evidence you never demonstrably read.
+
+By the time filing closes, the record has sorted itself into three piles without anyone deciding
+anything: agreed, still contested, and claimed but never backed by a document. Most disagreements
+end right there. No third party, no platform, nothing to trust.
+
+**The seats are the escalation, not the main event.** They rule only on what is still contested,
+and every document they open and every sentence they lean on is on the record. A seat is defined by
+what it is allowed to do, not by what it is made of — `open_exhibit` and `record_assessment` behave
+the same whether a person or an agent calls them. Two humans can hold the seats. The boundary does
+not care.
+
+**And an outcome has to name the rule it rests on.** A seat cannot cite a rule nobody filed. If a
+verdict is drafted anyway, it records that no rule was cited, and the page draws the gap where the
+reason should be. An outcome resting on nothing, rendered as a hole, is the point — because silence
+is what an invisible process gives you, and a hole is something you can show someone.
+
 ## What it deliberately does not do
 
 - **It does not decide anything.** No agent has a tool that can put a verdict into force.
