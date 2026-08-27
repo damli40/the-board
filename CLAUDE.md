@@ -223,7 +223,9 @@ idea reads as ignorance. Implementing all five and then naming the gap reads as 
 **Lead with the unfamiliar thing, not the story.** Ranked by how fast it lands:
 1. A manifest of what was **NOT** granted — nobody renders absence.
 2. A refusal that is the **output**, not the bug.
-3. A multi-party tool surface where the parties are **adversaries**.
+3. A multi-party tool surface where the parties **disagree**. Not enemies — two sides of one
+   disagreement, who both need the result to be checkable. Every other WebMCP artefact serves a
+   single cooperative user.
 4. Tool lifetime tied to a **phase of a process**, not a component's mount.
 
 **The generalized argument, which must appear before any first-person material:**
@@ -231,7 +233,8 @@ idea reads as ignorance. Implementing all five and then naming the gap reads as 
 2. So consequential processes will increasingly have agents inside them.
 3. Which means capability, evidence and action provenance must be observable.
 4. WebMCP is the browser-native capability boundary.
-5. The Board is that architecture on the hardest case: two parties who don't trust each other.
+5. The Board is that architecture on the hardest case: a disagreement where neither side should
+   have to take the other's word for how it was settled.
 
 **Link 1 is a citation, not an assertion.** Shopify ships WebMCP on every Liquid storefront —
 `search_catalog`, `update_cart`, `proceed_to_checkout`. And use what they *don't* expose: there is

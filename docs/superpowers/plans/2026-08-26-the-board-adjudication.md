@@ -236,7 +236,8 @@ Lead the video and README with 1 and 2. They are the reaction.
    defect; Chrome's own evals page frames mid-chain failure as a thing to prevent. Here the refusal
    lands on the ledger and becomes evidence. *Ten-second demo: `cite` throws, and the throw is
    what gets displayed.*
-3. **A multi-party tool surface where the parties are adversaries.** Every existing artefact serves
+3. **A multi-party tool surface where the parties disagree.** Not enemies — two sides of one
+   disagreement who both need a checkable result. Every existing artefact serves
    one cooperative user. Tools here are jurisdiction, not convenience.
 4. **A tool lifetime tied to the phase of a process, not a component's mount.** React's `usewebmcp`
    binds tools to whether a component happens to be on screen. Here a lifetime is a window in a
@@ -2915,8 +2916,8 @@ independent of** any first-person material:
 >    becomes a black box one layer deeper than the one we already cannot see into.
 > 4. WebMCP is the browser-native capability boundary: the page declares the tools, the parties own
 >    the agents, and the browser — not the application — decides who may do what.
-> 5. The Board is that architecture, demonstrated on the hardest case: two parties who do not trust
->    each other and one decision that has to be checkable.
+> 5. The Board is that architecture, demonstrated on the hardest case: a disagreement where neither
+>    side should have to take the other's word for how it was settled.
 
 **Link 1 is no longer an assertion — cite it.** Shopify ships WebMCP tools on *every* Liquid
 storefront, live, no install: `search_catalog`, `update_cart`, `proceed_to_checkout`. Agents acting
