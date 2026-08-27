@@ -2,6 +2,11 @@
 
 **Target runtime:** 2:45–2:55. Hard cap 3:00 (rules).
 **Format:** public YouTube, audio required.
+> **v6 — 2026-08-27.** The design split into two layers (spec v3): the parties narrow the
+> disagreement with nobody in the middle, and the seats rule only on what is still contested. The
+> 1:19 beat now carries the dispute-costs-a-read moment, which is layer 1 on camera *before* any
+> seat appears. The UI spec below gains **NO RULE CITED**. Runtime and word budget unchanged.
+
 
 > **v4 — 2026-08-26.** Rebuilt for the adjudication design
 > (`superpowers/specs/2026-08-26-the-board-adjudication-design.md`). The craft corrections from
@@ -162,7 +167,22 @@ A live scroll: actor · tool · arguments · outcome · timestamp. Successes are
 verbatim (`seat2 has not opened E2`). Inverting the usual visual hierarchy is the point: here the
 refusal is the product, not the error state.
 
-### 5. The citation trace — provenance you can follow with a finger
+### 5. NO RULE CITED — the hole where the reason should be
+When a verdict names no filed rule, the page draws that absence **at the same weight as the outcome
+itself** — full width, in the space the reason would occupy, not a footnote or a warning icon.
+
+```
+SEAT 2 → OVERTURNED
+BASIS  ┌──────────────────────────────┐
+       │       NO RULE CITED          │
+       └──────────────────────────────┘
+```
+This is the one screen that is the original injury, inverted. Being told a decision was made and
+never learning which rule you broke gives you *silence* — nothing to point at, nothing to show
+anyone. This gives you a picture. **Do not soften it into a warning banner.** A hole is showable;
+a warning is dismissable.
+
+### 6. The citation trace — provenance you can follow with a finger
 Each cited fact draws a line to its exhibit, opens it at the locator, and highlights the exact
 matched substring. Beside it, the **never opened** list for that seat — absence again, in the one
 place where it decides an outcome.

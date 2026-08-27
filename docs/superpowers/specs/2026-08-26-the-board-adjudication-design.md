@@ -7,6 +7,13 @@ what changed and why).
 
 ---
 
+> **v3 — 2026-08-27.** Two structural changes from v2, both from Dami: the parties are **not
+> adversaries**, and the design splits into **two layers** — parties narrow the disagreement with no
+> third party, seats decide only the residue. Mechanically: `dispute` now requires an open and a
+> machine-checked quote; parties get `open_exhibit` during FILING; receipts widen from `Seat` to
+> `Actor`; `draft_verdict` carries the rule it rests on and renders its absence. §2, §5, §6, §7 and
+> §9 are revised. Everything else is v2 and unchanged.
+
 ## 1. Where this came from
 
 > In July I won a hackathon. In August the prize was taken back. Between those two things I spent
@@ -29,10 +36,24 @@ shape of the harm are allowed and are enough. See §15.
 
 ## 2. What it is
 
-Two parties in a dispute. Each brings **their own AI advocate** — their ChatGPT, their Claude, not
-one the platform runs. A board of two seats reads what has been filed and drafts a verdict. Every
-move any agent makes is a tool call on a page both humans are watching, so the process *is* the
-record.
+Two people who disagree. **Not adversaries** — two sides of one disagreement who both need the
+result to be checkable. Each brings **their own AI advocate** — their ChatGPT, their Claude, not one
+the platform runs. Every move any agent makes is a tool call on a page both humans are watching, so
+the process *is* the record.
+
+**It works in two layers, and the first one needs nobody in the middle.**
+
+**Layer 1 — party to party.** One side files facts that point into documents. The other opens those
+documents and either concedes or disputes — and disputing costs something: you must open the
+document and quote the passage you say is wrong. By the time filing closes, the record has sorted
+itself into three piles **without anyone deciding anything**: agreed, still contested, and *claimed
+but never backed by a document*. Most disagreements end here. No third party, no platform, nothing
+to trust.
+
+**Layer 2 — the board, over the residue only.** Two seats read what is still contested and draft a
+verdict. Escalation, not the main event. **A seat is defined by what it is allowed to do, not by
+what it is made of** — `open_exhibit` and `assess` behave identically whether a person or an agent
+calls them. Two humans can hold the seats; the boundary does not care.
 
 The record shows not only what the board decided but **what it opened, what it searched for, what
 it quoted, what it could not verify, and what it never read at all.**
@@ -124,7 +145,7 @@ next phase's tools. `toolchange` fires and both panels update live.
 
 | | side A | side B | each board seat |
 |---|---|---|---|
-| **FILING** | `file_exhibit` `file_fact` `concede` `dispute` | same | — |
+| **FILING** | `file_exhibit` `file_fact` `open_exhibit` `concede` `dispute` | same | — |
 | **REVIEW** | `object` | `object` | `open_exhibit` `extract_text` `search_exhibits` `assess` |
 | **VERDICT** | `appeal` ×1 | `appeal` ×1 | `cite` `draft_verdict` |
 | **CONFIRMED** | — | — | — |
@@ -164,7 +185,19 @@ Fact = {
   id, side, text,
   points: { exhibitId, locator: {page?, lines?} },
   status: 'unopposed' | 'conceded' | 'disputed',
-  counters?: factId
+  counters?: factId,
+  disputeId?: string          // set when the other side disputes it, with evidence
+}
+
+// A dispute is evidence, not a click. Structurally parallel to an Assessment,
+// with the same two guards: the disputing side must have opened the exhibit,
+// and the quote must really be there.
+Dispute = {
+  id, factId, by: Side,
+  points: { exhibitId, locator },
+  quote, because,
+  verified: 'machine-checked' | 'human-check',
+  at
 }
 ```
 
@@ -218,16 +251,33 @@ documents: the invented quote, the paragraph that says something the document do
 cannot judge whether reasoning is good. It can prove whether the sentence exists. **The one class of
 error a reader cannot catch by reading, the machine catches by construction.**
 
-### Two read-receipt rules, enforced not logged
+### Three read-receipt rules, enforced not logged
 
-The chain is enforced end to end, each link refusing rather than warning:
+Receipts are per **actor**, not per seat — parties are receipted too, because disputing now requires
+a read. The chain is enforced end to end, each link refusing rather than warning:
 
 1. `open_exhibit(id)` is a tool, so every read lands on the record with a timestamp.
-2. **`assess(...)` throws unless that seat has opened that exhibit** in this case.
-3. **`cite(factId)` throws unless that seat holds an accepted assessment for it.**
+2. **`dispute(...)` throws unless that party has opened that exhibit**, and unless the quote checks
+   out. *Evidence cannot be waved away by someone who never demonstrably read it.* This is the
+   layer-1 rule, and it operates with no board involved.
+3. **`assess(...)` throws unless that seat has opened that exhibit** in this case.
+4. **`cite(factId)` throws unless that seat holds an accepted assessment for it.**
 
 So a citation implies an assessment, an assessment implies a read, and a read implies a tool call on
-the record. There is no path to a citation that skips a step.
+the record. There is no path to a citation that skips a step — and no path to dismissing a fact that
+skips reading it.
+
+### When to refuse, and when to draw the hole instead
+
+> **Refuse where refusing produces evidence. Render the absence where refusing would only produce
+> silence.**
+
+Refusing `dispute` produces evidence: the party must go and read, and the read lands on the record.
+Refusing a verdict that cites no rule produces *silence* — and silence is the original injury. So
+`cite` refuses a rule nobody filed, but `draft_verdict` does not: it records the missing basis and
+the page draws **NO RULE CITED** in the space where the reason should be. An outcome resting on
+nothing, rendered as a hole, is something you can show someone. This rule governs every guard in the
+build.
 
 A verdict therefore carries three lists: cited, opened, and **never opened**.
 
@@ -298,8 +348,19 @@ rather than something you are told: *the board could not have filed evidence.*
 ## 9. Verdict, split, appeal, confirm
 
 ```js
-Verdict = { seat, outcome, cited: [factId], opened: [id], neverOpened: [id], reasoning }
+Verdict = { seat, outcome, cited: [factId], opened: [id], neverOpened: [id], reasoning, basis }
+
+// An outcome has to name the rule it rests on. `cite` refuses a rule nobody filed —
+// but draft_verdict does NOT refuse, deliberately. Refusing produces silence, and
+// silence is the original injury. The absence is recorded and drawn instead.
+Basis = { cited: true,  factId, exhibitId }
+      | { cited: false, reason: 'no rule exhibit cited' }
 ```
+
+When `basis.cited` is false the page renders **NO RULE CITED** across the space where the reason
+should be — the same weight as the outcome itself, not a footnote. An outcome resting on nothing,
+drawn as a hole, is something a person can show someone else. That is the whole difference between
+this and being told a decision was made.
 
 Two seats rule independently. When they differ, the page shows **why**, computed from the ledger
 rather than explained by a model:
@@ -314,6 +375,7 @@ SEAT 1 → UPHELD       cited F1 F4        never opened E2
 SEAT 2 → OVERTURNED   cited F1 F4 F7
                       ────────────────────────────
                       SPLIT · differing input: E2
+                      BASIS · seat 1: R1 §4  ·  seat 2: NO RULE CITED
 ```
 
 Seat 1 never extracted the PDF. It ruled on the summary. **That is five weeks of "did anyone

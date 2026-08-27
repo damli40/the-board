@@ -5,7 +5,10 @@ on **27 Aug 2026**. WebMCP is moving; if something here contradicts the live doc
 win and this file is wrong — fix it in the same commit.
 
 **Live plan:** `docs/superpowers/plans/2026-08-26-the-board-adjudication.md`
-**Design spec:** `docs/superpowers/specs/2026-08-26-the-board-adjudication-design.md`
+**Design spec:** `docs/superpowers/specs/2026-08-26-the-board-adjudication-design.md` (v3)
+**Video + UI spec:** `docs/STORYBOARD.md` — holds the **UI spec for Task 8** (how capability and
+absence get onto the screen) and **Demo practice** (sourced demo-craft reference). Read both before
+building any UI.
 ⛔ `docs/superpowers/plans/2026-08-26-the-board-v1-versioned-rules.md` builds the abandoned
 concept. Do not execute it.
 
@@ -229,7 +232,16 @@ agent policing itself or the page politely labelling things. Only `exposedTo` is
 **Do Chrome's list too, then point at the gap.** Skipping their recommendations to claim a better
 idea reads as ignorance. Implementing all five and then naming the gap reads as having gone further.
 
-**Lead with the unfamiliar thing, not the story.** Ranked by how fast it lands:
+**Problem first at the video level; the unfamiliar thing first at the demo level.** ⚠️ An earlier
+version of this file said "lead with the unfamiliar thing, not the story." **That was wrong and is
+withdrawn.** The sources are explicit: *"the pitch that seals it is almost always the one where the
+problem gets explained before the product does,"* and losing teams spend ~5% on the problem. Apply
+the **30/70 rule** — 30% of runtime on the problem — and Jono Bacon's constraint: **something
+working must be on screen by ~90 seconds.** In this build the problem runs to 0:50 and the manifest
+lands at 0:50, which satisfies both. See `docs/STORYBOARD.md` → **Demo practice**.
+
+When the demo does start, it starts on the unfamiliar thing — never on signup or admin flow.
+Ranked by how fast each lands:
 1. A manifest of what was **NOT** granted — nobody renders absence.
 2. A refusal that is the **output**, not the bug.
 3. A multi-party tool surface where the parties **disagree**. Not enemies — two sides of one

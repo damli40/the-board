@@ -2,13 +2,22 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** A shared adjudication surface where two parties each attach their own AI advocate, two board seats read the filed evidence, and every read, quote and refusal lands on one page both humans watch — with no agent, in any phase, holding a tool that can put a verdict into force.
+**Goal:** A shared surface that makes a disagreement checkable without anyone in the middle. Two
+people who disagree — not adversaries — each attach their own AI advocate. **Layer 1: they narrow it
+themselves.** Facts point into documents; disputing one costs a read and a quote, so evidence cannot
+be waved away by someone who never opened it. By the time filing closes the record has sorted itself
+into agreed, contested, and *claimed but never backed by a document* — with nobody deciding
+anything. **Layer 2: two board seats rule on the residue only,** and every document they open, every
+sentence they lean on, and every refusal they hit lands on the page both humans are watching. An
+outcome must name the rule it rests on; if it names none, the page draws the hole. No agent, in any
+phase, holds a tool that can put a verdict into force.
 
 **Architecture:** One tab, five origins. A parent origin (`theboard.app`) owns the record — exhibits, facts, assessments, verdicts — and owns the tool registry. Four cross-origin iframes each hold one agent panel: two party advocates, two board seats. Tools are registered with `exposedTo` scoped to a single origin, so capability is enforced by the browser rather than by application logic. A lifetime is an `AbortController`: the WebMCP spec has no `unregisterTool`, so a tool is withdrawn by aborting the signal it was registered with. Filing closing and an appeal being spent are the same mechanism.
 
 **Tech Stack:** Vite + React + TypeScript · Tailwind + shadcn/ui · `motion` for the card deal/discard · `pdfjs-dist` for text extraction · Vitest for unit tests · IndexedDB for exhibit bytes · Netlify (**five sites**, custom headers, Functions for the provider key proxy and the link capture) · WebMCP via Chrome 149 origin trial / `chrome://flags/#enable-webmcp-testing`
 
-**Spec:** `docs/superpowers/specs/2026-08-26-the-board-adjudication-design.md`
+**Spec:** `docs/superpowers/specs/2026-08-26-the-board-adjudication-design.md` (**v3** — two layers)
+**Rules file (read first):** `CLAUDE.md`
 **Storyboard (drives Task 11 acceptance):** `docs/STORYBOARD.md`
 **Superseded plan (do not execute):** `docs/superpowers/plans/2026-08-26-the-board-v1-versioned-rules.md`
 
@@ -603,7 +612,7 @@ export const ORIGIN: Record<Actor, string> = {
   seat2: 'https://seat2.theboard.app'
 };
 
-export type ExhibitKind = 'text' | 'pdf' | 'image' | 'capture';
+export type ExhibitKind = 'text' | 'pdf' | 'image' | 'capture' | 'rule';   // a published rule or policy, so an outcome can name what it rests on
 
 /** Where inside an exhibit a claim points. Empty object means the whole document. */
 export interface Locator {
@@ -636,7 +645,29 @@ export interface Fact {
   status: 'unopposed' | 'conceded' | 'disputed';
   /** The fact this one answers, if any. */
   counters?: string;
+  /** Set when the other side disputes it. A dispute is evidence, not a click. */
+  disputeId?: string;
 }
+
+/**
+ * Disputing costs something. Structurally parallel to an Assessment and guarded the
+ * same way: the disputing side must have opened the exhibit, and the quote must
+ * really be there. This is the layer-1 rule — it runs with no board involved.
+ */
+export interface Dispute {
+  id: string;                  // 'D1', 'D2', ...
+  factId: string;
+  by: Side;
+  points: { exhibitId: string; locator: Locator };
+  quote: string;
+  because: string;
+  verified: 'machine-checked' | 'human-check';
+}
+
+/** The rule an outcome rests on — or a record that it rests on nothing. */
+export type Basis =
+  | { cited: true; factId: string; exhibitId: string }
+  | { cited: false; reason: 'no rule exhibit cited' };
 
 export type Finding = 'supported' | 'contradicted' | 'not-addressed' | 'cannot-tell';
 
@@ -662,6 +693,8 @@ export interface Verdict {
   opened: string[];            // exhibitIds this seat opened
   neverOpened: string[];       // exhibitIds it did not
   reasoning: string;
+  /** cite refuses an unfiled rule; draft_verdict records its absence instead. */
+  basis: Basis;
 }
 ```
 
@@ -752,7 +785,11 @@ export class ExhibitStore {
     const sha256 = await sha256Hex(input.bytes);
 
     let text: string | null = null;
-    if (input.kind === 'text' || input.kind === 'capture') {
+    // 'rule' MUST be in this branch. checkQuote keys off `text === null`, so a rule
+    // filed without extracted text would silently fall through to 'human-check' and
+    // the whole "an outcome must name a filed rule" guard would pass while proving
+    // nothing. The failure would be invisible: no error, just a weaker record.
+    if (input.kind === 'text' || input.kind === 'capture' || input.kind === 'rule') {
       text = new TextDecoder().decode(input.bytes);
     } else if (input.kind === 'pdf') {
       text = input.pages ? input.pages.join('\n') : null;
@@ -923,7 +960,7 @@ git commit -m "feat: exhibits hashed by content, facts pointing into them"
 ```
 
 ---
-## Task 3: The quote check and the read-receipt chain
+## Task 3: The quote check and the read-receipt chain (both layers)
 
 **This is the thesis in code.** A fabricated citation is the characteristic failure of an AI reading
 documents, and it is the one class of error a reader cannot catch by reading. The page cannot judge
@@ -936,7 +973,7 @@ whether reasoning is good; it can prove whether the sentence exists.
 
 **Interfaces:**
 - Consumes: `Exhibit`, `Locator`, `Assessment`, `Seat` from Task 2's `types.ts`; `ExhibitStore.get` from Task 2.
-- Produces: `checkQuote(exhibit, locator, quote): QuoteCheck`; `Receipts` with `markOpened(actor, exhibitId)`, `hasOpened(actor, exhibitId)`, `openedBy(actor)` — **`Actor`, not `Seat`: parties are receipted too, because `dispute` now requires a read**; `AssessmentStore` with `record(input): Assessment` and `heldFor(seat, factId): boolean`.
+- Produces: `checkQuote(exhibit, locator, quote): QuoteCheck`; `Receipts` with `markOpened(actor, exhibitId)`, `hasOpened(actor, exhibitId)`, `openedBy(actor)` — **`Actor`, not `Seat`: parties are receipted too, because `dispute` now requires a read**; `AssessmentStore` with `record(input): Assessment` and `heldFor(seat, factId): boolean`; `DisputeStore` with `record(input): Dispute`, `forFact(factId): Dispute | undefined`, `all(): Dispute[]`.
 - Consumed by: Task 4 (the tool bodies), Task 6 (verdict `cited`/`opened`/`neverOpened`), Task 8.
 
 - [ ] **Step 1: Write the failing quote test**
@@ -1209,20 +1246,22 @@ import type { ExhibitStore } from './exhibits';
 import { checkQuote } from './quote';
 
 /** Which seat has opened which exhibit. Written only by the open_exhibit tool. */
+// Actor, not Seat. Parties are receipted too, because `dispute` now requires a read.
+// Widening this one type is what lets the read-receipt chain run on both layers.
 export class Receipts {
-  private opened = new Map<Seat, Set<string>>();
+  private opened = new Map<Actor, Set<string>>();
 
-  markOpened(seat: Seat, exhibitId: string): void {
-    if (!this.opened.has(seat)) this.opened.set(seat, new Set());
-    this.opened.get(seat)!.add(exhibitId);
+  markOpened(actor: Actor, exhibitId: string): void {
+    if (!this.opened.has(actor)) this.opened.set(actor, new Set());
+    this.opened.get(actor)!.add(exhibitId);
   }
 
-  hasOpened(seat: Seat, exhibitId: string): boolean {
-    return this.opened.get(seat)?.has(exhibitId) ?? false;
+  hasOpened(actor: Actor, exhibitId: string): boolean {
+    return this.opened.get(actor)?.has(exhibitId) ?? false;
   }
 
-  openedBy(seat: Seat): string[] {
-    return [...(this.opened.get(seat) ?? [])];
+  openedBy(actor: Actor): string[] {
+    return [...(this.opened.get(actor) ?? [])];
   }
 }
 
@@ -1288,12 +1327,156 @@ export class AssessmentStore {
 Run: `npx vitest run packages/record/src/model/receipts.test.ts`
 Expected: PASS, 9 tests
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Write the failing dispute test**
+
+**This is layer 1 — no seat is involved anywhere in it.** A dispute is evidence, not a click. The
+guards are the same two the assessment carries, pointed at a party instead of a seat.
+
+```ts
+// packages/record/src/model/disputes.test.ts
+import { describe, it, expect, beforeEach } from 'vitest';
+import { Receipts } from './receipts';
+import { DisputeStore } from './disputes';
+import { ExhibitStore } from './exhibits';
+import type { DisputeInput } from './disputes';
+
+const bytes = (s: string) => new TextEncoder().encode(s).buffer;
+const TEXT = 'The rules page as published contains no clause about editing after the deadline.';
+
+describe('DisputeStore', () => {
+  let receipts: Receipts;
+  let exhibits: ExhibitStore;
+  let disputes: DisputeStore;
+  let good: DisputeInput;
+
+  beforeEach(async () => {
+    receipts = new Receipts();
+    exhibits = new ExhibitStore();
+    await exhibits.add({
+      side: 'A', kind: 'rule', name: 'rules.txt',
+      bytes: bytes(TEXT), filedAt: '2026-08-20T09:00:00Z'
+    });
+    disputes = new DisputeStore(exhibits, receipts);
+    good = {
+      factId: 'F1', by: 'B', exhibitId: 'E1',
+      locator: {}, quote: 'no clause about editing after the deadline',
+      because: 'The clause it relies on is not in the published page.'
+    };
+  });
+
+  it('refuses a dispute from a party that never opened the exhibit', () => {
+    expect(() => disputes.record(good)).toThrow('B has not opened E1');
+  });
+
+  it('refuses a dispute whose quote is not in the exhibit', () => {
+    receipts.markOpened('B', 'E1');
+    expect(() => disputes.record({ ...good, quote: 'a clause about editing' }))
+      .toThrow('quote not found in E1 at the given locator');
+  });
+
+  it('accepts a dispute backed by a read and a real quote', () => {
+    receipts.markOpened('B', 'E1');
+    const d = disputes.record(good);
+    expect(d.id).toBe('D1');
+    expect(d.verified).toBe('machine-checked');
+    expect(d.by).toBe('B');
+  });
+
+  it('tracks reads per actor, so A opening it does not license B', () => {
+    receipts.markOpened('A', 'E1');
+    expect(() => disputes.record(good)).toThrow('B has not opened E1');
+  });
+
+  it('reports the dispute held against a fact', () => {
+    receipts.markOpened('B', 'E1');
+    const d = disputes.record(good);
+    expect(disputes.forFact('F1')?.id).toBe(d.id);
+    expect(disputes.forFact('F9')).toBeUndefined();
+  });
+});
+```
+
+- [ ] **Step 10: Run it and watch it fail**
+
+Run: `npx vitest run packages/record/src/model/disputes.test.ts`
+Expected: FAIL — `Failed to resolve import "./disputes"`
+
+- [ ] **Step 11: Implement the dispute store**
+
+```ts
+// packages/record/src/model/disputes.ts
+import type { Dispute, Locator, Side } from './types';
+import type { ExhibitStore } from './exhibits';
+import type { Receipts } from './receipts';
+import { checkQuote } from './quote';
+
+export interface DisputeInput {
+  factId: string;
+  by: Side;
+  exhibitId: string;
+  locator: Locator;
+  quote: string;
+  because: string;
+}
+
+/**
+ * The layer-1 guard. Evidence cannot be waved away by someone who never
+ * demonstrably read it. Refusing here PRODUCES evidence — the party must go and
+ * open the exhibit, and that read lands on the record. Contrast draft_verdict,
+ * where refusing would only produce silence, so the absence is drawn instead.
+ */
+export class DisputeStore {
+  private items: Dispute[] = [];
+
+  constructor(private exhibits: ExhibitStore, private receipts: Receipts) {}
+
+  record(input: DisputeInput): Dispute {
+    if (!this.receipts.hasOpened(input.by, input.exhibitId)) {
+      throw new Error(`${input.by} has not opened ${input.exhibitId}`);
+    }
+    const exhibit = this.exhibits.get(input.exhibitId);
+    if (!exhibit) throw new Error(`no exhibit ${input.exhibitId}`);
+
+    const check = checkQuote(exhibit, input.locator, input.quote);
+    if (check.verifiable && !check.found) {
+      throw new Error(`quote not found in ${input.exhibitId} at the given locator`);
+    }
+
+    const dispute: Dispute = {
+      id: `D${this.items.length + 1}`,
+      factId: input.factId,
+      by: input.by,
+      points: { exhibitId: input.exhibitId, locator: input.locator },
+      quote: input.quote,
+      because: input.because,
+      verified: check.verifiable ? 'machine-checked' : 'human-check'
+    };
+    this.items.push(dispute);
+    return dispute;
+  }
+
+  forFact(factId: string): Dispute | undefined {
+    return this.items.find((d) => d.factId === factId);
+  }
+
+  all(): Dispute[] {
+    return [...this.items];
+  }
+}
+```
+
+- [ ] **Step 12: Run it and watch it pass**
+
+Run: `npx vitest run packages/record/src/model/disputes.test.ts`
+Expected: PASS, 5 tests
+
+- [ ] **Step 13: Commit**
 
 ```bash
 git add packages/record/src/model/quote.ts packages/record/src/model/quote.test.ts \
-        packages/record/src/model/receipts.ts packages/record/src/model/receipts.test.ts
-git commit -m "feat: the page proves the quote is real, and refuses a citation that skips a read"
+        packages/record/src/model/receipts.ts packages/record/src/model/receipts.test.ts \
+        packages/record/src/model/disputes.ts packages/record/src/model/disputes.test.ts
+git commit -m "feat: a read is required to dispute, to assess, and to cite"
 ```
 
 ---
@@ -2295,7 +2478,12 @@ export class VerdictStore {
   private citations = new Map<Seat, string[]>();
   private drafts = new Map<Seat, Verdict>();
 
-  constructor(private assessments: AssessmentStore, private receipts: Receipts) {}
+  constructor(
+    private assessments: AssessmentStore,
+    private receipts: Receipts,
+    private facts: FactStore,
+    private exhibits: ExhibitStore
+  ) {}
 
   /** No assessment, no citation. The last link in the chain. */
   cite(seat: Seat, factId: string): string[] {
@@ -2308,24 +2496,82 @@ export class VerdictStore {
     return [...list];
   }
 
-  draft(seat: Seat, outcome: Outcome, reasoning: string, allExhibitIds: string[]): Verdict {
+  /**
+   * NOTE THE ASYMMETRY, IT IS DELIBERATE. `cite` above THROWS — refusing there makes
+   * the seat go and read, and the read lands on the record, so refusing produces
+   * evidence. Here it does NOT throw on a missing rule. Refusing a verdict would
+   * produce silence, and silence is the original injury: an outcome arrives, no rule
+   * is named, and there is nothing to point at. So the absence is recorded and the UI
+   * draws NO RULE CITED at the same weight as the outcome. A hole is showable.
+   *
+   * `basisFactId` must name a fact this seat cited, pointing at an exhibit of kind
+   * 'rule'. Anything else — omitted, uncited, or not a rule — records cited: false.
+   */
+  draft(
+    seat: Seat,
+    outcome: Outcome,
+    reasoning: string,
+    allExhibitIds: string[],
+    basisFactId?: string
+  ): Verdict {
     const opened = this.receipts.openedBy(seat);
+    const cited = [...(this.citations.get(seat) ?? [])];
     const verdict: Verdict = {
       seat,
       outcome,
-      cited: [...(this.citations.get(seat) ?? [])],
+      cited,
       opened,
       neverOpened: allExhibitIds.filter((id) => !opened.includes(id)),
-      reasoning
+      reasoning,
+      basis: this.resolveBasis(cited, basisFactId)
     };
     this.drafts.set(seat, verdict);
     return verdict;
+  }
+
+  private resolveBasis(cited: string[], basisFactId?: string): Basis {
+    const NO_RULE = { cited: false, reason: 'no rule exhibit cited' } as const;
+    if (!basisFactId || !cited.includes(basisFactId)) return NO_RULE;
+    const fact = this.facts.get(basisFactId);
+    if (!fact) return NO_RULE;
+    const exhibit = this.exhibits.get(fact.points.exhibitId);
+    if (!exhibit || exhibit.kind !== 'rule') return NO_RULE;
+    return { cited: true, factId: basisFactId, exhibitId: exhibit.id };
   }
 
   bySeat(seat: Seat): Verdict | undefined {
     return this.drafts.get(seat);
   }
 }
+
+// Tests Task 6 must carry for the basis, written before the code above:
+//
+//   it('records no basis when the seat named no rule', () => {
+//     const v = verdicts.draft('seat1', 'upheld', '...', ['E1']);
+//     expect(v.basis).toEqual({ cited: false, reason: 'no rule exhibit cited' });
+//   });
+//
+//   it('records no basis when the named fact was never cited', () => {
+//     const v = verdicts.draft('seat1', 'upheld', '...', ['E1'], 'F9');
+//     expect(v.basis.cited).toBe(false);
+//   });
+//
+//   it('records no basis when the fact points at a document that is not a rule', () => {
+//     // F1 points at E1, kind 'pdf'. Cited, but not a rule.
+//     verdicts.cite('seat1', 'F1');
+//     const v = verdicts.draft('seat1', 'upheld', '...', ['E1'], 'F1');
+//     expect(v.basis.cited).toBe(false);
+//   });
+//
+//   it('records the basis when a cited fact points at a rule exhibit', () => {
+//     verdicts.cite('seat1', 'F2');            // F2 -> E2, kind 'rule'
+//     const v = verdicts.draft('seat1', 'upheld', '...', ['E1','E2'], 'F2');
+//     expect(v.basis).toEqual({ cited: true, factId: 'F2', exhibitId: 'E2' });
+//   });
+//
+//   it('DOES NOT throw when no rule was filed — that is the whole point', () => {
+//     expect(() => verdicts.draft('seat1', 'upheld', '...', ['E1'])).not.toThrow();
+//   });
 
 export interface Split {
   split: boolean;
