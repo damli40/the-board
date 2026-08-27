@@ -232,7 +232,90 @@ inside the first thirty seconds of the solution section.
 
 ---
 
+---
+
+## Demo practice — the sourced reference behind every choice in this file
+
+NotebookLM, *Hackathon Pitching & Live Demo Production*, queried **2026-08-27**. Practitioner
+advice from judges and serial winners — **not measured outcomes**. Kept here so the shot list can
+be argued with rather than merely followed.
+
+### The opening
+
+| Window | What belongs there |
+|---|---|
+| **0:00–0:10** | Memorable intro. State exactly what it does. Make the **first word** count — never "I'm happy to have the chance to share." |
+| **The tagline** | An **eight-word pitch** naming the audience and the core benefit. |
+| **0:10–0:20** | The hook: a startling statement, statistic, or relatable example that **defines the problem**. |
+| **Framing** | A specific persona, not an abstract category. *(Here the persona is first person — permitted by the naming rule, and it is the one thing nobody can copy.)* |
+
+Judges reviewing many projects back-to-back suffer severe cognitive fatigue. The opening is the
+most volatile part of the video for that reason.
+
+### The 30/70 rule
+30% of runtime on the **problem**, 70% on the solution, technical choices and potential. Make judges
+share the frustration *before* the product appears. Losing teams spend ~5% on the problem and are
+then surprised to score low on impact.
+
+### Ordering: problem before product
+Consensus: *"the pitch that seals it is almost always the one where the problem gets explained
+before the product does."* A minority rapid-hook path opens on the demo to stop the video dragging.
+**The binding constraint is Jono Bacon's rule — something working must be on screen within ~90
+seconds.** This build satisfies both: problem to 0:50, first working shot at 0:50.
+
+### Show versus narrate
+
+| Segment | Show | Narrate |
+|---|---|---|
+| Problem & hook | Minimalist frames, ≥20px type, whitespace, one striking graphic. No text-heavy slides. | The persona's struggle. **Zero jargon in this phase.** |
+| Concept | A high-level architecture diagram — components, data flow, integrations. | What it does, in one unambiguous line. Purpose before features. |
+| Demo | The app running, real interactions and animations. | **Interpretive commentary** — what each step demonstrates and *why it matters*. Never narrate the buttons you are clicking. |
+| Technical | A tight, targeted capture of logic, a code block, or a terminal. | The core innovation and why this stack. |
+
+### Making invisible work visible
+The techniques that carry a security or architecture project, where nothing visibly happens:
+
+- **Perceived value ∝ (visual fidelity × core innovation) ÷ cognitive friction.** Judges evaluate
+  builds like sports cars — the sleek exterior, rarely under the hood. *"The jury won't see your
+  beautifully written API that you spent 10 hours on."*
+- **Transition indicators.** Loading states, status ticks, processing beats — they make backend
+  computation legible as *something happening*.
+- **Dynamic lower-thirds** synced to the voiceover, naming the exact state rather than letting
+  judges guess.
+- **Show the algorithm's steps** — validation rules executing in a console beats abstracting the
+  work away and hiding what you built.
+- **The double prompt.** Run the allowed action and the forbidden action consecutively or side by
+  side. Show the interception, the policy violation, the refusal receipt.
+- **The refusal is the validation.** Amateurs assume a demo must only show success. In governance
+  and security, proving the system safely refuses *is* the proof. *"Be very direct about what works,
+  what doesn't... being honest about it reads as confidence."*
+- **Show the rules of engagement** — the guardrails and system instruction on screen. Concrete
+  deterministic rules read as discipline; hidden ones read as hand-waving.
+- **Before/after contrast.** The unsecured status quo, then the identical prompt hitting the
+  governed one. OpenAI judges: **one clear "oh, this is possible now" moment beats a shallow tour
+  of a dozen features.**
+- **Name your agents.** Decomposing a backend into distinct personas with visible functions stops
+  it reading as one undifferentiated block of code.
+- **Architecture diagram at the top of the technical segment** — conceptual layer first to orient
+  the room, only then the engineering decisions.
+
+### Mistakes, ranked by how fast they cost you
+
+| Mistake | Detail |
+|---|---|
+| **Bad audio** | The fastest killer. Muffled sound loses viewers faster than shaky video or low resolution; audio dropping has judges *"dropping like flies."* |
+| **Stalling the walkthrough** | Nothing working on screen inside ~90 seconds. Over 90s of buffering loses 60% of a stream's viewers. |
+| **"Eminem" pacing** | Cramming features by speeding up delivery. **The fix is to cut scope, never pace.** |
+| **Burying the wow** | Hiding the core innovation behind signup, registration or password-reset flows. |
+| **Jargon overload** | Dense acronyms or line-by-line code to a mixed panel — non-technical judges' brains *"turn off."* |
+| **Invisible front-end** | A deep backend presented through a raw or dated interface. Perceived value tracks visual fidelity. |
+| **Template trap** | Superficially modifying a starter kit — changing colours and variables scores extremely low. |
+| **Information overload** | Slides rammed with text split attention between reading and listening; judges end up doing neither. |
+| **Rehashed ideas** | Marked down for *"something that's already been done… or is extremely simple."* |
+
 ## What loses judges — verbatim from the sources
+
+*(v4's table, kept for the exact quotes. The ranked list above supersedes it for planning.)*
 
 | Pitfall | The quote |
 |---|---|
@@ -281,7 +364,7 @@ Standing rule: every storyboard carries one. Nothing goes on camera without a ro
 | 8 | "Every defence in Chrome's agent guidance asks the agent to behave" | **Verified** | [Agent security considerations for WebMCP](https://developer.chrome.com/docs/agents/security) — of nine listed defences, eight are agent-side or advisory (token limits, spotlighting, hint acknowledgment, self-restricted origins, agent-initiated confirmation, classifiers, critics); only `exposedTo` is enforced by the browser |
 | 9 | "There is no confirm" / the attempt is recorded | **True of this build** | `confirm` absent from `TOOLS`; a test asserts no origin lists it with every lifetime open. The `NOT GRANTED` line must be visible in `runAgentTurn` before it is filmed |
 | 10 | DevTools showing the same absence | **Verified** | [Debug WebMCP tools](https://developer.chrome.com/docs/devtools/application/webmcp) — Application → WebMCP lists available tools per origin with an invocation log |
-| 7 | Video-craft guidance in this document | **Sourced, second-hand** | NotebookLM: *Hackathon Pitching & Live Demo Production* and *Hackathon Judging, README & Winglang*, queried 2026-08-26. Practitioner advice, **not measured outcomes** |
+| 7 | Video-craft guidance in this document | **Sourced, second-hand** | NotebookLM: *Hackathon Pitching & Live Demo Production* and *Hackathon Judging, README & Winglang*, queried 2026-08-26 and again 2026-08-27 (see **Demo practice** above). Practitioner advice, **not measured outcomes** |
 
 ---
 
