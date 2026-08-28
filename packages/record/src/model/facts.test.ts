@@ -38,4 +38,20 @@ describe('FactStore', () => {
   it('throws on an unknown fact id', () => {
     expect(() => facts.concede('F9', 'B')).toThrow('no such fact: F9');
   });
+
+  it('attachDispute links the dispute id and sets status together', () => {
+    const f = facts.file(base);
+    const linked = facts.attachDispute(f.id, 'D1', 'B');
+    expect(linked.status).toBe('disputed');
+    expect(linked.disputeId).toBe('D1');
+  });
+
+  it('attachDispute refuses when the acting side owns the fact', () => {
+    const f = facts.file(base);
+    expect(() => facts.attachDispute(f.id, 'D1', 'A')).toThrow('cannot dispute your own fact');
+  });
+
+  it('attachDispute throws on an unknown fact id', () => {
+    expect(() => facts.attachDispute('F9', 'D1', 'B')).toThrow('no such fact: F9');
+  });
 });

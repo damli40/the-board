@@ -43,6 +43,22 @@ export class FactStore {
     return f;
   }
 
+  /**
+   * Links a real Dispute record (Task 3/4) to the fact it disputes and sets
+   * status to 'disputed' together, in one guarded write. This is the only
+   * legitimate way to set `disputeId` — there is no public setter for it —
+   * so a dispute tool never needs to reach around the store (e.g.
+   * `facts.get(id).disputeId = d.id`) to link the two, which would also
+   * silently reach past this same self-dealing guard.
+   */
+  attachDispute(factId: string, disputeId: string, by: Side): Fact {
+    const f = this.require(factId);
+    if (f.side === by) throw new Error('cannot dispute your own fact');
+    f.status = 'disputed';
+    f.disputeId = disputeId;
+    return f;
+  }
+
   get(id: string): Fact | undefined {
     return this.items.find((x) => x.id === id);
   }
