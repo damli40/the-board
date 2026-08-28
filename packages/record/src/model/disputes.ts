@@ -33,8 +33,12 @@ export class DisputeStore {
     if (!exhibit) throw new Error(`no such exhibit: ${input.exhibitId}`);
 
     const check = checkQuote(exhibit, input.locator, input.quote);
+    // check.reason, not a hardcoded string — matches AssessmentStore.record. checkQuote
+    // already distinguishes "no such page", "an empty quote proves nothing" and "quote
+    // not found" with different reasons; collapsing them here would tell a party the
+    // wrong thing is wrong, which is the exact failure class this project exists to catch.
     if (check.verifiable && !check.found) {
-      throw new Error(`quote not found in ${input.exhibitId} at the given locator`);
+      throw new Error(check.reason);
     }
 
     const dispute: Dispute = {

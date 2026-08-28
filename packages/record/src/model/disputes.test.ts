@@ -63,4 +63,23 @@ describe('DisputeStore', () => {
     expect(() => disputes.record({ ...good, exhibitId: 'E9' }))
       .toThrow('no such exhibit: E9');
   });
+
+  it('reports what the locator actually got wrong, not a generic quote-not-found', () => {
+    receipts.markOpened('B', 'E1');
+    expect(() => disputes.record({ ...good, locator: { page: 9 } }))
+      .toThrow('E1 has no page 9');
+  });
+
+  it('reports the empty-quote reason, not a generic quote-not-found', () => {
+    receipts.markOpened('B', 'E1');
+    expect(() => disputes.record({ ...good, quote: '   ' }))
+      .toThrow('an empty quote proves nothing');
+  });
+
+  it('accepts a dispute against an image exhibit but labels it human-check rather than proven', async () => {
+    await exhibits.add({ side: 'A', kind: 'image', name: 's.png', bytes: bytes('PNG'), filedAt: '2026-08-20T09:01:00Z' });
+    receipts.markOpened('B', 'E2');
+    const d = disputes.record({ ...good, exhibitId: 'E2', quote: 'the timestamp reads 21:00' });
+    expect(d.verified).toBe('human-check');
+  });
 });
