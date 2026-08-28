@@ -21,6 +21,7 @@
     "packages/*/src",
     "vitest.config.ts",
     "vitest.setup.ts",
+    "vitest.setup.node.ts",
     "scripts"
   ]
 }
