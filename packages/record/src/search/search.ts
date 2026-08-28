@@ -7,6 +7,7 @@
 // catch (see ../model/quote.ts).
 
 import type { Exhibit, Locator } from '../model/types';
+import { normaliseForQuote } from '../model/quote';
 
 export interface Hit {
   exhibitId: string;
@@ -15,10 +16,16 @@ export interface Hit {
 }
 
 export function searchExhibits(exhibits: Exhibit[], query: string): Hit[] {
-  // Same normalisation as the quote check (../model/quote.ts): case-insensitive,
-  // whitespace-trimmed, never a fuzzy match. An empty or whitespace-only query
-  // must not become a match-everything query — trim first, then bail on empty.
-  const needle = query.trim().toLowerCase();
+  // Reuse checkQuote's own normaliser (../model/quote.ts) rather than
+  // hand-rolling a second one: it collapses every whitespace run to a single
+  // space, lowercases, and trims. Matching case-only here previously let a
+  // real PDF hit go missing — pdf.js commonly emits items that already carry
+  // their own trailing space, so extract.ts's `.join(' ')` can double up
+  // ('Hello ' + ' ' + 'World' -> 'Hello  World'), and plain `.includes()`
+  // does not see through that even though checkQuote does. Importing the
+  // same function instead of re-implementing it is what keeps this in sync
+  // with quote.ts going forward, not just today.
+  const needle = normaliseForQuote(query);
   if (needle === '') return [];
 
   const hits: Hit[] = [];
@@ -28,7 +35,15 @@ export function searchExhibits(exhibits: Exhibit[], query: string): Hit[] {
 
     if (exhibit.pages) {
       exhibit.pages.forEach((pageText, i) => {
-        if (pageText.toLowerCase().includes(needle)) {
+        // Split into pages/lines BEFORE collapsing, so locators stay correct —
+        // collapsing the whole document first would erase the boundaries this
+        // per-unit search depends on. One consequence, left alone on purpose:
+        // a phrase split across two lines by a real line break is still not
+        // found here, even though checkQuote would find it against the whole
+        // exhibit (empty locator). That's a real divergence from the quote
+        // check, not a re-occurrence of this bug — line locators are the
+        // reason search exists in this shape.
+        if (normaliseForQuote(pageText).includes(needle)) {
           hits.push({ exhibitId: exhibit.id, locator: { page: i + 1 }, snippet: pageText.trim() });
         }
       });
@@ -36,7 +51,7 @@ export function searchExhibits(exhibits: Exhibit[], query: string): Hit[] {
     }
 
     exhibit.text.split('\n').forEach((line, i) => {
-      if (line.toLowerCase().includes(needle)) {
+      if (normaliseForQuote(line).includes(needle)) {
         hits.push({ exhibitId: exhibit.id, locator: { lines: [i + 1, i + 1] }, snippet: line.trim() });
       }
     });

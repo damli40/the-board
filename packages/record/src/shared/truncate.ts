@@ -21,11 +21,20 @@ const TRUNCATION_NOTICE =
   '...[truncated at 1500 chars; call again with a narrower page or query]';
 
 /**
- * Truncates `text` to the 1.5K-character WebMCP tool-output budget and appends
- * a notice when it does. Text at or under the budget is returned unchanged —
- * no notice, no copy.
+ * Truncates `text` so the RETURNED PAYLOAD — body plus notice — is at most
+ * the 1.5K-character WebMCP tool-output budget, and appends the notice when
+ * it does. Text at or under the budget is returned unchanged — no notice, no
+ * copy.
+ *
+ * The body is cut to `TOOL_OUTPUT_BUDGET - TRUNCATION_NOTICE.length`, not to
+ * the full budget with the notice appended after. Cutting the body to the
+ * full 1500 and then appending the notice would push the total past 1500 —
+ * and if Chrome hard-truncates on top of that at exactly 1500, it clips the
+ * end of the notice itself, silencing the one line whose entire job is to
+ * make the truncation loud. The guard cannot be allowed to get silenced by
+ * the budget it exists to respect.
  */
 export function truncateForTool(text: string): string {
   if (text.length <= TOOL_OUTPUT_BUDGET) return text;
-  return text.slice(0, TOOL_OUTPUT_BUDGET) + TRUNCATION_NOTICE;
+  return text.slice(0, TOOL_OUTPUT_BUDGET - TRUNCATION_NOTICE.length) + TRUNCATION_NOTICE;
 }

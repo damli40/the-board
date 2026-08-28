@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { searchExhibits } from './search';
+import { extractPages } from '../pdf/extract';
 import type { Exhibit } from '../model/types';
 
 const exhibits: Exhibit[] = [
@@ -42,5 +43,33 @@ describe('searchExhibits', () => {
   it('returns nothing for an empty or whitespace-only query', () => {
     expect(searchExhibits(exhibits, '')).toEqual([]);
     expect(searchExhibits(exhibits, '   ')).toEqual([]);
+  });
+
+  it('finds a match inside text shaped like what extractPages really returns — doubled internal spaces from the join', async () => {
+    // pdf.js commonly emits items that already carry their own trailing/leading
+    // space, so extract.ts's `.join(' ')` can double up: ['Hello ', 'World', ' this', ' is']
+    // -> 'Hello  World  this  is'. checkQuote (../model/quote.ts) collapses that
+    // before comparing; searchExhibits must use the same collapse or a real PDF
+    // hit can go missing for text that is genuinely on the page. Built via the
+    // real extractPages join, not a hand-typed double-space string, so this
+    // exercises what production actually produces.
+    const fakeLoader = (pages: string[][]) => async () => ({
+      numPages: pages.length,
+      getPage: async (n: number) => ({
+        getTextContent: async () => ({ items: pages[n - 1].map((str) => ({ str })) })
+      })
+    });
+    const [pageText] = await extractPages(
+      new ArrayBuffer(0),
+      fakeLoader([['Hello ', 'World', ' this', ' is']])
+    );
+
+    const pdfExhibit: Exhibit = {
+      id: 'E4', side: 'A', kind: 'pdf', name: 'c.pdf', sha256: 'w', filedAt: '2026-08-20T09:03:00Z',
+      text: pageText, pages: [pageText]
+    };
+
+    const hits = searchExhibits([pdfExhibit], 'Hello World this');
+    expect(hits.map((h) => h.exhibitId)).toEqual(['E4']);
   });
 });
