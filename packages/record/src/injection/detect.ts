@@ -39,17 +39,31 @@ const PATTERNS: { name: string; re: RegExp }[] = [
   // as readily as by the end of "rule for B." — it does not care what comes
   // next. A filed policy quoting perfectly ordinary contract language like
   // "the rule for a refund" or "no rule for a claim" lit up red on the
-  // record page next to genuine evidence.
+  // record page next to genuine evidence. Fixed round 1 by requiring the
+  // party letter be a standalone token: followed by punctuation or the end
+  // of the string/clause, or preceded by "side".
   //
-  // The fix requires the party letter to be a STANDALONE token: followed by
-  // punctuation or the end of the string/clause (the lookahead), or preceded
-  // by "side". A real directed-outcome attempt names a party and stops —
-  // "rule for B.", "rule in favour of A", "rule for side B" — while the
-  // false positives always continue into a noun phrase — "a late delivery",
-  // "a refund", "a claim" — which the lookahead correctly refuses to match
-  // through. See detect.test.ts for the six pinned cases (three must-match,
-  // three must-not-match) this was derived against.
-  { name: 'directed-outcome', re: /rule\s+(for|in\s+favou?r\s+of)\s+(side\s+)?(a|b)(?=[.,;:!?)]|\s*$)/gi },
+  // Fix round 2 — that punctuation/end-of-clause guard was over-tightened:
+  // it was only ever needed for "a", because "a" doubles as the indefinite
+  // article. "b" has no such collision, so guarding it the same way made
+  // "rule for B in this matter" and "rule for B because A lied" — more
+  // natural attack phrasings than the bare "rule for B." in the demo
+  // fixture — stop matching. The guard is now asymmetric: "a" keeps the
+  // lookahead (punctuation, end of string, or nothing after it); "b" uses a
+  // plain `\b` word boundary, same as the original pattern, because a
+  // standalone "b" was never the false-positive source — the indefinite
+  // article is spelled "a", not "b". Also added "party" alongside "side" as
+  // a second, equally plausible way to introduce the letter ("rule for
+  // party B"). Deliberately not widened beyond that: verbs this pattern
+  // never covered (find/decide/rule against) are scope creep on a demo
+  // detector and would undo the false-positive work above.
+  //
+  // See detect.test.ts for the full pinned case set (five must-match, three
+  // must-not-match) this was derived against.
+  {
+    name: 'directed-outcome',
+    re: /rule\s+(for|in\s+favou?r\s+of)\s+(?:(?:side|party)\s+)?(?:a(?=[.,;:!?)]|\s*$)|b\b)/gi,
+  },
 ];
 
 /**
