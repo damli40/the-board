@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 800" font-family="ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, monospace">
+  <title>The Board architecture: one parent origin owning the record and tool registry, four cross-origin panels, capability scoped by exposedTo</title>
+
+  <defs>
+    <marker id="arrow-cyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+    </marker>
+    <marker id="arrow-violet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#a78bfa"/>
+    </marker>
+  </defs>
+
+  <!-- background: fixed dark ground, not theme-dependent, so this reads the same on a light or dark host page -->
+  <rect x="0" y="0" width="1240" height="800" fill="#0a0a0a"/>
+
+  <text x="620" y="42" text-anchor="middle" font-size="23" font-weight="700" fill="#fafafa">THE BOARD: capability boundary, not application policy</text>
+  <text x="620" y="66" text-anchor="middle" font-size="13.5" fill="#a3a3a3">one browser tab &#183; five origins &#183; a tool exists only where it was registered</text>
+
+  <!-- outer browser-tab / process boundary -->
+  <rect x="20" y="88" width="1200" height="614" rx="14" fill="none" stroke="#404040" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="40" y="112" font-size="12" letter-spacing="1" fill="#737373">ONE BROWSER TAB &#183; ONE PROCESS BOUNDARY</text>
+
+  <!-- ============ PARENT ORIGIN ============ -->
+  <rect x="50" y="128" width="380" height="555" rx="12" fill="#111111" stroke="#525252" stroke-width="2"/>
+  <text x="70" y="158" font-size="19" font-weight="700" fill="#f5f5f5">PARENT ORIGIN</text>
+  <text x="70" y="178" font-size="13" fill="#a3a3a3">http://localhost:8080</text>
+  <text x="70" y="195" font-size="11" font-style="italic" fill="#737373">production: theboard.app (the swap lives in one file, origins.ts)</text>
+
+  <!-- THE RECORD -->
+  <rect x="70" y="212" width="340" height="150" rx="8" fill="#171717" stroke="#404040"/>
+  <text x="85" y="236" font-size="16" font-weight="600" fill="#e5e5e5">THE RECORD</text>
+  <text x="85" y="257" font-size="12" fill="#a3a3a3">docket &#183; exhibits &#183; facts &#183; disputes</text>
+  <text x="85" y="275" font-size="12" fill="#a3a3a3">FILING &#8594; REVIEW &#8594; VERDICT &#8594; CONFIRMED</text>
+  <text x="85" y="293" font-size="12" fill="#a3a3a3">ledger tape: every call, success or refusal</text>
+  <text x="85" y="311" font-size="11" fill="#737373">fixed timestamps, never Date.now(), so takes are reproducible</text>
+
+  <!-- TOOL REGISTRY -->
+  <rect x="70" y="378" width="340" height="150" rx="8" fill="#171717" stroke="#404040"/>
+  <text x="85" y="402" font-size="16" font-weight="600" fill="#e5e5e5">TOOL REGISTRY</text>
+  <text x="85" y="424" font-size="11.5" fill="#7dd3fc">registerTool(spec, { signal, exposedTo })</text>
+  <text x="85" y="444" font-size="12" fill="#a3a3a3">one AbortController per lifetime</text>
+  <text x="85" y="462" font-size="12" fill="#a3a3a3">abort() = withdrawal, since the spec has no unregisterTool</text>
+  <text x="85" y="480" font-size="12" fill="#a3a3a3">manifest(): a live projection, never a hard-coded list</text>
+
+  <!-- CONFIRM / RETURN WITH NOTE -->
+  <rect x="70" y="545" width="340" height="90" rx="8" fill="#1c1010" stroke="#7f1d1d" stroke-width="2"/>
+  <circle cx="395" cy="562" r="10" fill="none" stroke="#f87171" stroke-width="2"/>
+  <line x1="388.5" y1="555.5" x2="401.5" y2="568.5" stroke="#f87171" stroke-width="2"/>
+  <text x="85" y="568" font-size="14.5" font-weight="700" fill="#fca5a5">CONFIRM &#183; RETURN WITH NOTE</text>
+  <text x="85" y="589" font-size="11" fill="#f87171">never registered as a tool, in any phase</text>
+  <text x="85" y="607" font-size="11" fill="#f87171">a named human presses these directly, here</text>
+  <text x="85" y="625" font-size="10.5" fill="#9a3412">no agent anywhere holds a tool that reaches this box</text>
+
+  <!-- ============ CONNECTORS (parent <-> left column) ============ -->
+  <!-- solid: registerTool grant. dashed: the panel's own getTools({fromOrigins}) pull. Drawn only for the
+       two geometrically adjacent panels; the same mechanism holds for all four (see caption). -->
+  <line x1="410" y1="440" x2="460" y2="255" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrow-cyan)"/>
+  <line x1="460" y1="271" x2="410" y2="456" stroke="#525252" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <rect x="392" y="330" width="118" height="34" rx="4" fill="#0a0a0a" stroke="#404040"/>
+  <text x="451" y="343" text-anchor="middle" font-size="9" fill="#67e8f9">registerTool</text>
+  <text x="451" y="357" text-anchor="middle" font-size="9" fill="#a3a3a3">getTools({fromOrigins})</text>
+
+  <line x1="410" y1="466" x2="460" y2="548" stroke="#a78bfa" stroke-width="2" marker-end="url(#arrow-violet)"/>
+  <line x1="460" y1="564" x2="410" y2="482" stroke="#525252" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <rect x="392" y="500" width="118" height="34" rx="4" fill="#0a0a0a" stroke="#404040"/>
+  <text x="451" y="513" text-anchor="middle" font-size="9" fill="#c4b5fd">registerTool</text>
+  <text x="451" y="527" text-anchor="middle" font-size="9" fill="#a3a3a3">getTools({fromOrigins})</text>
+
+  <!-- ============ PANEL TEMPLATE (4 cross-origin frames) ============ -->
+  <!-- ADVOCATE A — cyan — localhost:8081 -->
+  <g>
+    <rect x="460" y="128" width="350" height="270" rx="10" fill="#0e1a1c" stroke="#22d3ee" stroke-width="2"/>
+    <text x="478" y="158" font-size="16.5" font-weight="700" fill="#67e8f9">ADVOCATE A</text>
+    <text x="478" y="178" font-size="11.5" fill="#67e8f9" opacity="0.75">http://localhost:8081 &#183; &lt;iframe allow="tools"&gt;</text>
+    <line x1="478" y1="190" x2="792" y2="190" stroke="#22d3ee" stroke-width="1" opacity="0.35"/>
+    <text x="478" y="212" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
+    <text x="486" y="232" font-size="12" fill="#d4d4d4">&#9679; file_exhibit</text>
+    <text x="486" y="250" font-size="12" fill="#d4d4d4">&#9679; file_fact</text>
+    <text x="486" y="268" font-size="12" fill="#d4d4d4">&#9679; dispute</text>
+    <text x="486" y="286" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
+    <text x="478" y="314" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="486" y="334" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; record_assessment (seat-only)</text>
+    <line x1="486" y1="330" x2="676" y2="330" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="486" y="352" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="486" y1="348" x2="654" y2="348" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+  </g>
+
+  <!-- ADVOCATE B — amber — localhost:8082 -->
+  <g>
+    <rect x="850" y="128" width="350" height="270" rx="10" fill="#1c1408" stroke="#f59e0b" stroke-width="2"/>
+    <text x="868" y="158" font-size="16.5" font-weight="700" fill="#fcd34d">ADVOCATE B</text>
+    <text x="868" y="178" font-size="11.5" fill="#fcd34d" opacity="0.75">http://localhost:8082 &#183; &lt;iframe allow="tools"&gt;</text>
+    <line x1="868" y1="190" x2="1182" y2="190" stroke="#f59e0b" stroke-width="1" opacity="0.35"/>
+    <text x="868" y="212" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
+    <text x="876" y="232" font-size="12" fill="#d4d4d4">&#9679; file_exhibit</text>
+    <text x="876" y="250" font-size="12" fill="#d4d4d4">&#9679; file_fact</text>
+    <text x="876" y="268" font-size="12" fill="#d4d4d4">&#9679; concede</text>
+    <text x="876" y="286" font-size="12" fill="#d4d4d4">&#9679; dispute</text>
+    <text x="868" y="314" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="876" y="334" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; record_assessment (seat-only)</text>
+    <line x1="876" y1="330" x2="1066" y2="330" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="876" y="352" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="876" y1="348" x2="1044" y2="348" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+  </g>
+
+  <!-- SEAT 1 — violet — localhost:8083 -->
+  <g>
+    <rect x="460" y="420" width="350" height="270" rx="10" fill="#160f22" stroke="#a78bfa" stroke-width="2"/>
+    <text x="478" y="450" font-size="16.5" font-weight="700" fill="#c4b5fd">SEAT 1</text>
+    <text x="478" y="470" font-size="11.5" fill="#c4b5fd" opacity="0.75">http://localhost:8083 &#183; &lt;iframe allow="tools"&gt;</text>
+    <line x1="478" y1="482" x2="792" y2="482" stroke="#a78bfa" stroke-width="1" opacity="0.35"/>
+    <text x="478" y="504" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
+    <text x="486" y="524" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
+    <text x="486" y="542" font-size="12" fill="#d4d4d4">&#9679; extract_text (page lends)</text>
+    <text x="486" y="560" font-size="12" fill="#d4d4d4">&#9679; record_assessment</text>
+    <text x="486" y="578" font-size="12" fill="#d4d4d4">&#9679; cite</text>
+    <text x="478" y="606" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="486" y="626" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; file_exhibit (party-only)</text>
+    <line x1="486" y1="622" x2="646" y2="622" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="486" y="644" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="486" y1="640" x2="654" y2="640" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+  </g>
+
+  <!-- SEAT 2 — emerald — localhost:8084 -->
+  <g>
+    <rect x="850" y="420" width="350" height="270" rx="10" fill="#0a1f16" stroke="#34d399" stroke-width="2"/>
+    <text x="868" y="450" font-size="16.5" font-weight="700" fill="#6ee7b7">SEAT 2</text>
+    <text x="868" y="470" font-size="11.5" fill="#6ee7b7" opacity="0.75">http://localhost:8084 &#183; &lt;iframe allow="tools"&gt;</text>
+    <line x1="868" y1="482" x2="1182" y2="482" stroke="#34d399" stroke-width="1" opacity="0.35"/>
+    <text x="868" y="504" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
+    <text x="876" y="524" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
+    <text x="876" y="542" font-size="12" fill="#d4d4d4">&#9679; search_exhibits (page lends)</text>
+    <text x="876" y="560" font-size="12" fill="#d4d4d4">&#9679; record_assessment</text>
+    <text x="876" y="578" font-size="12" fill="#d4d4d4">&#9679; draft_verdict</text>
+    <text x="868" y="606" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="876" y="626" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; file_exhibit (party-only)</text>
+    <line x1="876" y1="622" x2="1036" y2="622" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="876" y="644" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="876" y1="640" x2="1044" y2="640" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+  </g>
+
+  <!-- caption -->
+  <text x="620" y="738" text-anchor="middle" font-size="13" fill="#d4d4d4">Capability is enforced by the browser, not this app's code: a tool registered with exposedTo:['http://localhost:8083']</text>
+  <text x="620" y="758" text-anchor="middle" font-size="13" fill="#d4d4d4">is absent from every other origin's getTools() call: not hidden, not declined at runtime. confirm is never registered anywhere.</text>
+  <text x="620" y="782" text-anchor="middle" font-size="11" fill="#737373">the same registerTool / getTools relation shown for Advocate A and Seat 1 holds for Advocate B and Seat 2, each scoped to its own origin</text>
+</svg>
