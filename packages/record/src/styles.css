@@ -1,1 +1,27 @@
 @import "tailwindcss";
+
+/*
+ * Fix round 1 (Task 8 review), Critical follow-up: "the storyboard requires
+ * a visible beat when a receipt lands, and new ledger rows currently arrive
+ * with no animation... a silent state change reads as nothing happening."
+ * A plain CSS keyframe (not a Tailwind transition) so a freshly-mounted
+ * ledger row plays this once automatically, with no JS state needed to
+ * track "is this the new one" — React already gives every genuinely new
+ * ledger entry a genuinely new key (see Docket.tsx's LedgerTape), so a
+ * fresh DOM node is exactly a fresh entry.
+ */
+@keyframes ledger-row-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px);
+    background-color: rgba(255, 255, 255, 0.16);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ledger-row-enter {
+  animation: ledger-row-enter 480ms ease-out;
+}

@@ -73,13 +73,20 @@ function PhaseRibbon({ phase, manifests, appeal }: Omit<DocketProps, 'entries'>)
  * here the refusal is the product, not the error state."
  */
 function LedgerTape({ entries }: { entries: LedgerEntry[] }) {
-  const rows = [...entries].reverse(); // newest first — a tape you read from the head
+  // Reversed for DISPLAY (newest first — "a tape you read from the head"),
+  // but keyed by each entry's position in the ORIGINAL, append-only array.
+  // Fix round 1: the previous version keyed by position in the REVERSED
+  // array, which shifts for every existing row on every new append (row 0
+  // today is row 1 tomorrow) — that starves the enter animation below (React
+  // sees every row as "changed", not just the new one) and is the wrong kind
+  // of identity for a list that only ever grows at the tail.
+  const rows = entries.map((e, i) => ({ e, i })).reverse();
   return (
     <div data-testid="ledger-tape" className="max-h-72 overflow-y-auto divide-y divide-neutral-900">
       {rows.length === 0 && (
         <p className="text-neutral-700 italic text-xs p-3">the ledger is empty — nothing has been called yet</p>
       )}
-      {rows.map((e, i) => {
+      {rows.map(({ e, i }) => {
         const actor = ORIGIN_ACTOR[e.origin];
         const accent = actor ? ACTOR_ACCENT[actor] : undefined;
         const label = actor ? ACTOR_LABEL[actor] : e.origin;
@@ -90,7 +97,11 @@ function LedgerTape({ entries }: { entries: LedgerEntry[] }) {
             <div
               key={i}
               data-testid="ledger-row-refusal"
-              className="w-full px-3 py-2.5 bg-red-950/40 border-l-4 border-red-500 text-red-200"
+              // ledger-row-enter: fix round 1, "the storyboard requires a
+              // visible beat when a receipt lands" — a plain CSS keyframe
+              // that plays once on mount (see styles.css), so a genuinely
+              // new row announces itself instead of just appearing.
+              className="ledger-row-enter w-full px-3 py-2.5 bg-red-950/40 border-l-4 border-red-500 text-red-200"
             >
               <div className="flex items-baseline justify-between text-xs uppercase tracking-wider">
                 <span className={accent?.text ?? 'text-red-300'}>{label}</span>
@@ -105,7 +116,7 @@ function LedgerTape({ entries }: { entries: LedgerEntry[] }) {
         }
 
         return (
-          <div key={i} data-testid="ledger-row-success" className="w-full px-3 py-1 text-xs text-neutral-400 flex items-center gap-2">
+          <div key={i} data-testid="ledger-row-success" className="ledger-row-enter w-full px-3 py-1 text-xs text-neutral-400 flex items-center gap-2">
             <span className={accent?.text ?? 'text-neutral-500'}>{label}</span>
             <span className="text-neutral-600">·</span>
             <span className="text-neutral-300">{e.tool}</span>

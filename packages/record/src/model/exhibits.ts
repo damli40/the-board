@@ -51,18 +51,48 @@ export class ExhibitStore {
    * project targets — WebMCP itself requires Chrome). Where it does not
    * exist — both vitest projects, per the note on `hasIndexedDB` above —
    * this in-memory Map is the ONLY storage, so the full suite stays green
-   * without either environment needing a fake or a polyfill. This is a
-   * deliberate feature-detected fallback, not an abandoned swap: `add` and
-   * `get` still write through to a real IndexedDB database whenever one is
-   * available, and `bytesOf` reads back from whichever store actually holds
-   * the bytes.
+   * without either environment needing a fake or a polyfill. It is ALSO the
+   * fallback for a real browser whose IndexedDB open attempt fails (fix
+   * round 1, Important 3) — see `db()` below.
    */
   private memory = new Map<string, ArrayBuffer>();
   private dbPromise: Promise<IDBDatabase> | undefined;
+  /**
+   * Fix round 1, Important 3: set once an `openDb()` attempt actually
+   * fails, so this store falls back to `memory` for the rest of the
+   * session. The previous version cached the REJECTED promise in
+   * `dbPromise` forever — every later `add`/`bytesOf` call re-awaited that
+   * same rejection and threw, bricking storage for a browser that has
+   * IndexedDB but hit one transient failure (a quota error, private mode),
+   * with no fallback at all. `db()` now catches the rejection once, flips
+   * this flag, and every call after that goes straight to `memory` instead
+   * of re-attempting (and re-failing) the open.
+   */
+  private dbFailed = false;
 
-  private db(): Promise<IDBDatabase> {
+  /** Resolves to the database, or `undefined` when IndexedDB is absent or has failed — never rejects. */
+  private async db(): Promise<IDBDatabase | undefined> {
+    if (this.dbFailed || !hasIndexedDB()) return undefined;
     if (!this.dbPromise) this.dbPromise = openDb();
-    return this.dbPromise;
+    try {
+      return await this.dbPromise;
+    } catch {
+      this.dbFailed = true;
+      this.dbPromise = undefined;
+      return undefined;
+    }
+  }
+
+  /** Writes to IndexedDB if it's available and healthy, else to the in-memory fallback. Throws on a genuine write failure (e.g. quota exceeded) — the DB was open, the write itself failed. */
+  private async storeBytes(id: string, bytes: ArrayBuffer): Promise<void> {
+    const db = await this.db();
+    if (!db) { this.memory.set(id, bytes); return; }
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.objectStore(STORE_NAME).put(bytes, id);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
   }
 
   async add(input: ExhibitInput): Promise<Exhibit> {
@@ -93,20 +123,16 @@ export class ExhibitStore {
       filedAt: input.filedAt
     };
 
+    // Fix round 1, Important 3: store the bytes BEFORE publishing the
+    // exhibit into `items`. The previous order pushed first, so a quota or
+    // private-mode failure on the `put` rejected `add()` while the exhibit
+    // was already visible in `all()` with its bytes nowhere — `ExhibitImage`
+    // would then show "loading image…" forever for an exhibit the record
+    // claims exists. Now, if `storeBytes` throws, this function rejects and
+    // `items` was never touched: the exhibit either exists with its bytes
+    // reachable, or it does not exist at all.
+    await this.storeBytes(id, input.bytes);
     this.items.push(exhibit);
-
-    if (hasIndexedDB()) {
-      const db = await this.db();
-      await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        tx.objectStore(STORE_NAME).put(input.bytes, id);
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
-      });
-    } else {
-      this.memory.set(id, input.bytes);
-    }
-
     return exhibit;
   }
 
@@ -122,15 +148,13 @@ export class ExhibitStore {
    * caller (ExhibitList) already awaits this.
    */
   async bytesOf(id: string): Promise<ArrayBuffer | undefined> {
-    if (hasIndexedDB()) {
-      const db = await this.db();
-      return new Promise((resolve, reject) => {
-        const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id);
-        req.onsuccess = () => resolve(req.result as ArrayBuffer | undefined);
-        req.onerror = () => reject(req.error);
-      });
-    }
-    return this.memory.get(id);
+    const db = await this.db();
+    if (!db) return this.memory.get(id);
+    return new Promise((resolve, reject) => {
+      const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id);
+      req.onsuccess = () => resolve(req.result as ArrayBuffer | undefined);
+      req.onerror = () => reject(req.error);
+    });
   }
 
   all(): Exhibit[] {

@@ -40,9 +40,15 @@ const NEXT_PHASE: Partial<Record<Phase, Phase>> = { FILING: 'REVIEW', REVIEW: 'V
  * Every store, the registry and the phase machine, built once per page load
  * and kept for the case's whole lifetime — plain classes, not React state.
  * `tick` (returned alongside) is the seam: mutating one of these objects
- * (a tool executing, an appeal spending, confirm being pressed) does not by
- * itself trigger a re-render, so every mutation path in this file calls
- * `refresh()` afterward.
+ * does not by itself trigger a re-render, so every mutation path THIS FILE
+ * INITIATES (advancing a phase, pressing confirm) calls `refresh()`
+ * afterward. That is not every mutation path that exists: a panel executing
+ * a tool mutates the ledger through Chrome's own cross-origin WebMCP
+ * machinery, a call this file never makes and so can never follow with a
+ * `refresh()` of its own (fix round 1, Critical — this comment previously
+ * claimed "every mutation path," which was true of every path in this file
+ * and wrong about the one that mattered). `engine.ledger.subscribe(refresh)`
+ * below is what actually covers that path.
  */
 function useEngine(mc: ModelContextLike) {
   const ledger = useRef<Ledger | undefined>(undefined);
@@ -110,6 +116,23 @@ export function App() {
   useEffect(() => {
     if (!status.available) return;
     void engine.phaseMachine.enter('FILING').then(refresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.available]);
+
+  // Fix round 1, Critical: a panel executes a tool through Chrome's own
+  // cross-origin WebMCP machinery — the callback that mutates the ledger and
+  // the manifest call-counts runs, but nothing in THIS file calls refresh(),
+  // because nothing in this file made the call in the first place. Without
+  // this subscription the ledger tape, the manifest counts and the hand
+  // chips all sat stale until a human clicked the advance-phase button or
+  // ConfirmBar — exactly the failure mode named in review: a refusal lands
+  // and the screen the video holds on shows nothing. Subscribing (not
+  // polling) because the ledger already knows the instant an entry lands;
+  // a poll would either lag behind that instant or spend cycles checking
+  // state that usually hasn't changed.
+  useEffect(() => {
+    if (!status.available) return;
+    return engine.ledger.subscribe(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.available]);
 

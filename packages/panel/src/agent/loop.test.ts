@@ -16,10 +16,17 @@ function fakeTool(overrides: Record<string, unknown> = {}) {
   };
 }
 
+// Every entry defaults to a 200 OK — `askModel`'s `res.ok` check (fix round
+// 1, Important 1) means a mock that omits `ok` reads as a failed response
+// and every test using it would throw before reaching its own assertions.
 function fetchSequence(...bodies: unknown[]) {
   const fn = vi.fn();
-  for (const body of bodies) fn.mockResolvedValueOnce({ json: async () => body });
+  for (const body of bodies) fn.mockResolvedValueOnce({ ok: true, status: 200, statusText: 'OK', json: async () => body });
   return fn;
+}
+
+function failedResponse(status: number, statusText: string) {
+  return { ok: false, status, statusText, json: async () => { throw new Error('should not be parsed'); } };
 }
 
 describe('runAgentTurn', () => {
@@ -128,5 +135,89 @@ describe('runAgentTurn', () => {
     const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
     const toolMessage = secondBody.messages.find((m: { role: string; content: string }) => m.role === 'tool');
     expect(toolMessage.content).toContain('The clause is on page 4.');
+  });
+
+  // Fix round 1, Important 1: a non-2xx proxy response used to reach
+  // `res.json()` unchecked, throwing a SyntaxError out of `runAgentTurn`
+  // that the panel's old try/finally (no catch) never handled — the panel
+  // rendered the goal line and then nothing, forever. `askModel` now checks
+  // `res.ok` and throws a real, catchable, descriptive Error instead.
+  it('throws a descriptive error instead of trying to parse a failed proxy response as JSON', async () => {
+    (globalThis as { document?: unknown }).document = {
+      modelContext: { getTools: vi.fn().mockResolvedValue([]), executeTool: vi.fn() },
+    };
+    const fn = vi.fn().mockResolvedValueOnce(failedResponse(500, 'Internal Server Error'));
+    vi.stubGlobal('fetch', fn);
+
+    await expect(runAgentTurn('anything')).rejects.toThrow('model proxy responded 500 Internal Server Error');
+  });
+
+  // Fix round 1, Important 2 — the covering test the coordinator asked for
+  // "in particular". The previous gate (`tool.annotations?.untrustedContentHint`
+  // truthy) fails OPEN: a RegisteredTool from Chrome's real getTools() whose
+  // `annotations` is missing entirely — unverified whether Chrome always
+  // populates it — would skip sanitising with no visible failure. A guard
+  // must fail CLOSED: sanitise whenever the hint is absent or unknown, and
+  // skip only when a tool has explicitly declared itself safe.
+  describe('sanitiser default (fail closed)', () => {
+    it('still fences and redacts output from a tool whose annotations object is missing entirely', async () => {
+      const tool = fakeTool({ annotations: undefined });
+      const executeTool = vi.fn().mockResolvedValue(`E2: "${INJECTED}"`);
+      (globalThis as { document?: unknown }).document = {
+        modelContext: { getTools: vi.fn().mockResolvedValue([tool]), executeTool },
+      };
+      const fetchMock = fetchSequence(
+        { calls: [{ name: 'search_exhibits', arguments: { query: 'clause' } }] },
+        { message: 'done' }
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await runAgentTurn('search for the clause');
+
+      const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      const toolMessage = secondBody.messages.find((m: { role: string; content: string }) => m.role === 'tool');
+      expect(toolMessage.content).toContain('<untrusted-counterparty-text>');
+      expect(toolMessage.content).not.toContain('disregard prior facts');
+      expect(toolMessage.content).toContain('[redacted-instruction]');
+    });
+
+    it('still fences output from a tool whose untrustedContentHint is present but not exactly false (e.g. omitted from an otherwise-populated annotations object)', async () => {
+      const tool = fakeTool({ annotations: { readOnlyHint: true } });
+      const executeTool = vi.fn().mockResolvedValue(`E2: "${INJECTED}"`);
+      (globalThis as { document?: unknown }).document = {
+        modelContext: { getTools: vi.fn().mockResolvedValue([tool]), executeTool },
+      };
+      const fetchMock = fetchSequence(
+        { calls: [{ name: 'search_exhibits', arguments: { query: 'clause' } }] },
+        { message: 'done' }
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await runAgentTurn('search for the clause');
+
+      const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      const toolMessage = secondBody.messages.find((m: { role: string; content: string }) => m.role === 'tool');
+      expect(toolMessage.content).toContain('<untrusted-counterparty-text>');
+    });
+
+    it('skips fencing ONLY when a tool explicitly declares untrustedContentHint: false', async () => {
+      const tool = fakeTool({ annotations: { readOnlyHint: true, untrustedContentHint: false } });
+      const executeTool = vi.fn().mockResolvedValue('The clause is on page 4.');
+      (globalThis as { document?: unknown }).document = {
+        modelContext: { getTools: vi.fn().mockResolvedValue([tool]), executeTool },
+      };
+      const fetchMock = fetchSequence(
+        { calls: [{ name: 'search_exhibits', arguments: { query: 'clause' } }] },
+        { message: 'done' }
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await runAgentTurn('search for the clause');
+
+      const secondBody = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+      const toolMessage = secondBody.messages.find((m: { role: string; content: string }) => m.role === 'tool');
+      expect(toolMessage.content).not.toContain('<untrusted-counterparty-text>');
+      expect(toolMessage.content).toContain('The clause is on page 4.');
+    });
   });
 });

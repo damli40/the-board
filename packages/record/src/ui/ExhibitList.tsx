@@ -41,14 +41,25 @@ function FlaggedText({ text, flags }: { text: string; flags: ReturnType<typeof d
 function ExhibitImage({ id, bytesOf }: { id: string; bytesOf: BytesOf }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    let revoked: string | null = null;
+    // Fix round 1, Minor: the previous version only revoked a URL that had
+    // already been created by the time cleanup ran. If this component
+    // unmounts BEFORE `bytesOf(id)` resolves, `revoked` was still null at
+    // cleanup time — then the promise resolves anyway (nothing cancels a
+    // promise), creates an object URL, and calls `setUrl` on an unmounted
+    // component; that URL is now created but never revoked. `cancelled`
+    // stops the URL from being created at all once this effect has torn
+    // down, so there is nothing left over to leak.
+    let cancelled = false;
+    let createdUrl: string | null = null;
     Promise.resolve(bytesOf(id)).then((bytes) => {
-      if (!bytes) return;
-      const objectUrl = URL.createObjectURL(new Blob([bytes]));
-      revoked = objectUrl;
-      setUrl(objectUrl);
+      if (cancelled || !bytes) return;
+      createdUrl = URL.createObjectURL(new Blob([bytes]));
+      setUrl(createdUrl);
     });
-    return () => { if (revoked) URL.revokeObjectURL(revoked); };
+    return () => {
+      cancelled = true;
+      if (createdUrl) URL.revokeObjectURL(createdUrl);
+    };
   }, [id, bytesOf]);
   if (!url) return <div className="text-neutral-600 text-xs italic">loading image…</div>;
   return <img src={url} alt={`exhibit ${id}`} className="max-h-48 rounded border border-neutral-800" />;

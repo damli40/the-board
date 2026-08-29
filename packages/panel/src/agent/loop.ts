@@ -74,6 +74,18 @@ interface ProxyPlan {
   calls?: { name: string; arguments?: Record<string, unknown> }[];
 }
 
+/**
+ * Fix round 1, Important 1: this used to hand `res.json()` straight back
+ * without checking `res.ok`. A 500 (or any non-2xx) from the Netlify
+ * function is a normal, non-throwing `fetch()` resolution whose body is
+ * usually not valid JSON (an error page, or plain text) — `res.json()` then
+ * throws a `SyntaxError` out of `runAgentTurn`, uncaught, because the
+ * panel's `App.tsx` only wrapped the call in `try/finally`, no `catch`. On
+ * camera that reads as the panel hanging forever after the goal line: an
+ * unhandled rejection produces no more state updates, so nothing further is
+ * ever rendered. Checking `res.ok` here turns that into an ordinary,
+ * catchable `Error` with a message that actually says what happened.
+ */
 async function askModel(
   system: string,
   messages: ProxyMessage[],
@@ -84,6 +96,9 @@ async function askModel(
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ system, messages, tools }),
   });
+  if (!res.ok) {
+    throw new Error(`model proxy responded ${res.status} ${res.statusText}`);
+  }
   return res.json();
 }
 
@@ -154,11 +169,18 @@ export async function runAgentTurn(goal: string): Promise<string> {
         const raw = result === null ? `${call.name}: navigated` : String(result);
         transcript.push(raw);
 
-        // Ruling 2: anything annotated untrustedContentHint may carry text
-        // the OTHER side wrote. Fence and redact it (Chrome's spotlighting
-        // guardrail, CLAUDE.md §3) before it becomes part of what the model
-        // reads next turn.
-        const forModel = tool.annotations?.untrustedContentHint ? sanitizeCounterpartyText(raw) : raw;
+        // Ruling 2 / fix round 1, Important 2: sanitise unless the tool
+        // EXPLICITLY says untrustedContentHint is false. The previous
+        // version gated on `tool.annotations?.untrustedContentHint` truthy,
+        // which fails OPEN: a `RegisteredTool` from Chrome's real
+        // cross-origin getTools() whose `annotations` object is missing
+        // entirely (unverified whether Chrome always includes it) silently
+        // skips the spotlighting guardrail with no visible failure — the
+        // exact way a guard should not degrade. A guard fails closed: treat
+        // "absent" and "unknown" as "assume untrusted", and skip fencing
+        // only when a tool has affirmatively declared it safe.
+        const explicitlyTrusted = tool.annotations?.untrustedContentHint === false;
+        const forModel = explicitlyTrusted ? raw : sanitizeCounterpartyText(raw);
         messages.push({ role: 'tool', content: `${call.name} -> ${forModel}` });
       } catch (err) {
         // A refusal is surfaced, never swallowed — it is the product working.

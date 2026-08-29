@@ -32,6 +32,35 @@ function useVanishingSlots(cards: Card[]): Slot[] {
   const [slots, setSlots] = useState<Slot[]>(() => cards.map((card) => ({ card, vanishing: false })));
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
+  function scheduleRemoval(tool: string) {
+    const t = setTimeout(() => {
+      // Guarded on `vanishing` too: if the tool came back before this
+      // fired, the diffing effect below already flipped it to
+      // `vanishing: false`, and this must not delete a now-live card.
+      setSlots((s) => s.filter((x) => !(x.card.tool === tool && x.vanishing)));
+      timers.current.delete(tool);
+    }, VANISH_MS);
+    timers.current.set(tool, t);
+  }
+
+  // Fix round 1, Important 4: timers must survive across every diffing pass
+  // below — they are only ever cleared when they fire, when their card
+  // comes back live, or when this component genuinely unmounts. The
+  // previous version put the "clear every timer" cleanup on the SAME effect
+  // that re-runs on every card-set change, so it ran on every re-run too,
+  // not just on unmount: two card-changing renders inside VANISH_MS (which
+  // ConfirmBar's confirm path — refresh(), then a second refresh() after
+  // phaseMachine.enter('CONFIRMED') resolves — produces) killed a still-
+  // vanishing card's timer moments before the diff loop's "already
+  // vanishing, timer already scheduled" branch assumed that timer would
+  // still be there to remove it. No timer was ever rescheduled, so the
+  // opacity-0 card stayed in `slots` forever, showing as a mysterious gap
+  // in the hand. This effect now owns ONLY the true-unmount cleanup.
+  useEffect(() => {
+    const currentTimers = timers.current;
+    return () => { for (const t of currentTimers.values()) clearTimeout(t); currentTimers.clear(); };
+  }, []);
+
   useEffect(() => {
     const liveNames = new Set(cards.map((c) => c.tool));
     setSlots((prev) => {
@@ -42,23 +71,23 @@ function useVanishingSlots(cards: Card[]): Slot[] {
         if (liveNames.has(slot.card.tool)) {
           // A tool that reappears before its own vanish timer fired (a
           // lifetime closing and reopening faster than VANISH_MS) is
-          // un-vanished here; the stale timer below is guarded against
-          // removing it regardless, but clearing it too avoids a leaked
-          // timer reference.
+          // un-vanished here; clearing the pending timer too avoids a
+          // leaked reference (it would otherwise still fire harmlessly,
+          // since the removal inside it is itself guarded on `vanishing`).
           const pending = timers.current.get(slot.card.tool);
           if (pending) { clearTimeout(pending); timers.current.delete(slot.card.tool); }
           const fresh = cards.find((c) => c.tool === slot.card.tool)!;
           next.push({ card: fresh, vanishing: false });
         } else if (!slot.vanishing) {
           next.push({ card: slot.card, vanishing: true });
-          const t = setTimeout(() => {
-            // Guarded on `vanishing` too: if the tool came back before this
-            // fired, the branch above already flipped it to `vanishing:
-            // false`, and this must not delete a now-live card.
-            setSlots((s) => s.filter((x) => !(x.card.tool === slot.card.tool && x.vanishing)));
-            timers.current.delete(slot.card.tool);
-          }, VANISH_MS);
-          timers.current.set(slot.card.tool, t);
+          scheduleRemoval(slot.card.tool);
+        } else if (!timers.current.has(slot.card.tool)) {
+          // Defensive, self-healing branch: a slot marked vanishing with NO
+          // scheduled timer would otherwise never leave `slots` — this is
+          // exactly the class of bug fixed above. Kept in case some other
+          // ordering strands a timer in the future.
+          next.push(slot);
+          scheduleRemoval(slot.card.tool);
         } else {
           next.push(slot); // already vanishing, timer already scheduled
         }
@@ -69,7 +98,6 @@ function useVanishingSlots(cards: Card[]): Slot[] {
       }
       return next;
     });
-    return () => { for (const t of timers.current.values()) clearTimeout(t); timers.current.clear(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cards.map((c) => `${c.tool}:${c.used}`).join(',')]);
 
