@@ -198,8 +198,11 @@ One tab, five origins. A parent origin owns the record and the tool registry. Fo
 frames each hold one agent: two advocates, two seats. Tools are registered scoped to a single
 origin, so capability is enforced by the browser rather than by this app's own logic.
 
-**A lifetime is an `AbortController`.** WebMCP has no `unregisterTool` — a tool is withdrawn by
-aborting the signal it was registered with. So filing closing and an appeal being spent are the same
+**A lifetime is an `AbortController`.** WebMCP had an `unregisterTool()` method until March 2026,
+then removed it on purpose and replaced it with the `AbortSignal` design (spec PR #147/#156). A tool
+is withdrawn today by aborting the signal it was registered with. That means this is not a
+workaround for something the spec forgot, it is the design the spec's own authors landed on after
+trying the named-unregister approach first. So filing closing and an appeal being spent are the same
 line of code, and you can watch tools leave both hands on the same frame.
 
 Every file stays on the machine it was filed from. Nothing is uploaded anywhere.
@@ -217,11 +220,16 @@ anywhere, so there is no surface to reach.
 Tool annotations can say a tool is read-only, and can flag its output as untrusted. **There is no
 way to declare which model is behind a tool.** So I can build two board seats and I cannot *prove*
 to you that they are independent. In a system whose entire purpose is provenance, the one thing
-with no provenance is the model itself.
+with no provenance is the model itself. That gap is still there, checked again against the spec
+repo at HEAD on 29 Aug 2026.
 
-The draft spec does have `requestUserInteraction()` — a way for a tool to ask the user for input
-mid-execution. That is the nearest existing primitive and it is worth saying plainly what it does
-not do: **it authorises one call. It does not record who authorised it.**
+An earlier version of this section pointed at `requestUserInteraction()` on `ModelContextClient` as
+the nearest existing primitive for a tool asking a human for confirmation mid-call. That primitive
+is gone: it was proposed and then removed, "Remove ModelContextClient for now" (spec PR #205,
+11 Jun 2026). Asking a human for input mid-execution is back to an open discussion (spec issues
+#165 and #50), with nothing shipped. So there is currently no primitive to point to here, not even
+an imperfect one, which makes the model-provenance gap the cleaner ask: it is not competing with a
+removed feature, there is simply nothing there.
 
 Model provenance is the annotation I would ask for.
 

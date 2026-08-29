@@ -4,6 +4,10 @@ Project-scoped. Everything here was verified against the WebMCP explainer and Ch
 on **27 Aug 2026**. WebMCP is moving; if something here contradicts the live docs, the live docs
 win and this file is wrong — fix it in the same commit.
 
+Re-verified against the spec repo (github.com/webmachinelearning/webmcp) at HEAD `41d12f0` on
+**29 Aug 2026**. Six claims below were stale or wrong and are corrected in place, each with its
+source, rather than listed separately as an erratum.
+
 **Live plan:** `docs/superpowers/plans/2026-08-26-the-board-adjudication.md`
 **Design spec:** `docs/superpowers/specs/2026-08-26-the-board-adjudication-design.md` (v3)
 **Video + UI spec:** `docs/STORYBOARD.md` — holds the **UI spec for Task 8** (how capability and
@@ -38,17 +42,25 @@ These are not preferences. Breaking one damages something that cannot be undone.
 
 | Trap | The truth |
 |---|---|
-| `executeTool(name, argsObject)` | **Wrong.** Chrome takes `executeTool(toolObject, jsonString)`. The tool object comes from `getTools()`. An object for args stringifies to `[object Object]` and the tool receives nothing. |
-| `getTools()` for cross-origin | **Returns same-origin only.** Cross-origin needs `getTools({ fromOrigins: [...] })` **and** the owner must have registered with a matching `exposedTo`. Both, or you silently get `[]`. |
-| `unregisterTool()` | **Does not exist.** Never has. Register with `{ signal }` and abort the signal. Same for `provideContext()` and `clearContext()`. |
+| `executeTool(name, argsObject)` | **Wrong shape, and version-dependent.** Chrome's current build (149 origin trial) takes `executeTool(toolObject, jsonString)`: the tool object comes from `getTools()`, and the arguments are a JSON string, not an object. The spec has since moved on: PR #246 (17 Aug 2026) changed the signature to `executeTool(tool, inputObject)`, a plain object, no stringifying. Match whichever surface you are shipping against; today that is Chrome, so it wants the string. |
+| `getTools()` for cross-origin | **Returns same-origin only.** Cross-origin needs `getTools({ fromOrigins: [...] })` **and** the owner must have registered with a matching `exposedTo`. A `fromOrigins` entry that is not a secure, parsable origin makes the call reject with `SecurityError`. The silent `[]` is a different case: a well-formed origin whose tools simply do not list you in `exposedTo`. |
+| `unregisterTool()` | **Did exist, then was deliberately replaced.** It was in the spec's IDL until PR #147 (26 Mar 2026) and in the explainer until PR #156 (27 Mar 2026), then removed on purpose in favour of the `AbortSignal` design. There is no `unregisterTool` today; withdrawal means aborting the signal a tool was registered with. Same story for `provideContext()` and `clearContext()`: gone, not missing. **This makes "a lifetime is an `AbortController`" the spec authors' own conclusion, not just our clever reading of a gap.** Say that plainly wherever this project argues the point, it is a stronger claim than the one it replaces. |
 | `navigator.modelContext` | Deprecated in Chromium 150. Feature-detect `document.modelContext ?? navigator.modelContext`, then check `'registerTool' in it`. |
-| Aborting mid-execution | Chrome ≤152: abort cancels in-flight executions. **Chrome 153+: unregisters without cancelling them.** Do not write logic that depends on either. |
-| `executeTool` return value | Resolves to **`null`** when the tool triggers a navigation. `null` is not an error. |
-| `getTools()` ordering | **Alphabetical**, not registration order. Never assert registration order in a test or render the manifest assuming it. |
-| Origin isolation | WebMCP is disabled in documents that are not origin-isolated. `Origin-Agent-Cluster: ?0` kills it. Set `?1`. |
+| `registerTool()` return value | **Returns a Promise** (PR #200, Jun 2026). Code that calls it and moves on without awaiting silently swallows a rejection, for example an already-aborted signal. Await it. |
+| Aborting mid-execution | **Chrome guidance, and only half of it is stated outright.** Chrome's docs say Chrome 153+ unregisters a tool without cancelling executions already in flight; the Chrome-152-and-earlier behaviour ("abort cancels them") is only implied by contrast, never written down. Do not write logic that depends on either. The spec gives a cleaner tool for this: `executeTool()` takes its own third options bag with its own `signal`, separate from the signal the tool was registered with, so one call can be cancelled without touching the tool's registration at all. That strengthens the lifetime idea rather than competing with it: a single execution has a lifetime too, and it is also an `AbortController`. |
+| `executeTool` return value on navigation | **Chrome guidance and the spec disagree, and the spec issue is still open.** Chrome's docs describe `executeTool` resolving to `null` when the tool triggers a navigation. Spec issue #135 covers exactly this and is unresolved; the algorithm as written today rejects with `UnknownError` instead. Do not treat `null` as a safe case if you are coding against the spec text. |
+| `getTools()` ordering | **Code-unit order (case-sensitive ASCII), not registration order, and not locale-alphabetical.** Every uppercase letter sorts before every lowercase one. Never assert registration order in a test, and do not assume a locale-aware alphabetical sort either. |
+| Origin isolation | WebMCP is disabled in documents that are not origin-isolated. Sending `Origin-Agent-Cluster: ?0`, or calling `document.domain`, turns it off. Chrome origin-keys by default even without setting `?1`, so `?1` is not strictly required, only good practice: set it to make the requirement explicit and to survive someone adding `document.domain` later. |
 | Permissions Policy | `tools` defaults to `self`. Cross-origin iframes need `allow="tools"`. `Permissions-Policy: tools=()` disables it; `registerTool` then rejects with `NotAllowedError`. |
-| Secure context | HTTPS required. `file://` and plain `http://` do not work. |
-| **Origin trial tokens are per-origin** | Five origins = five registrations. No subdomain wildcard. A judge without the flag sees a dead page unless every origin has its own token. |
+| Secure context | HTTPS (or localhost) required, `[SecureContext]` in the spec IDL. Plain `http://` does not work. `file://` is a different story: the spec explicitly exempts the `file:` scheme from the origin-isolation check, so file:// is meant to work at spec level. Chrome's docs do not confirm it either way, so do not rely on it for the actual demo, and do not repeat the claim that it is broken. |
+| Origin trial tokens | Registered per origin in practice; treat each origin as needing its own registration for this project's five-origin setup. But the flat claim that no subdomain wildcard exists is wrong: Chrome's origin-trial console has a "Match Sub-Domains" option. Also worth knowing: Edge 150 runs its own origin trial, and ChatGPT Desktop already ships support, this is not a single-browser bet. |
+
+**Also in the spec, not yet in this build:**
+- The execute callback itself receives `{ signal }` (the spec's `ToolExecuteCallbackOptions`), so a
+  tool can check from inside its own code whether its own execution was cancelled.
+- There is a second, declarative way to expose tools: HTML `<form>` attributes that compile down to
+  a tool automatically (`declarative-api-explainer.md` in the spec repo). One sentence on this in
+  the README keeps the submission from reading as unaware of half the surface.
 
 **Availability floor:** Chrome 149+ via origin trial, or `chrome://flags/#enable-webmcp-testing`.
 No browser supports `document.modelContext` by default. Say this in the README's first screenful.
@@ -83,7 +95,12 @@ phase of a dispute. That distinction is the product — say it in the README, do
   descriptive errors so the model can self-correct and retry. *(This is why the read-receipt chain
   throwing `seat2 has not opened E1` is best practice, not a hack.)*
 
-### Character budgets — Chrome's published numbers
+### Character budgets: Chrome guidance, not spec
+These are Chrome's published recommendations for well-behaved tools, not limits the WebMCP spec
+enforces. Nothing in the spec rejects an over-budget name, description, or output; treat the table
+below as a design target, not a hard ceiling the browser checks. The 30-char figure covers both the
+tool name and every parameter name, not just the tool.
+
 | Limit | Number |
 |---|---|
 | Tool name | 30 chars |
@@ -94,7 +111,7 @@ phase of a dispute. That distinction is the product — say it in the README, do
 
 `extract_text` and `search_exhibits` **must** truncate to 1.5K and **say so in the payload**
 (`"...[truncated at 1500 chars; call again with a narrower page or query]"`). A silent truncation
-would let a seat quote text it never received — the exact failure the quote check exists to catch.
+would let a seat quote text it never received, the exact failure the quote check exists to catch.
 
 ### Annotations — must be true, not convenient
 - `readOnlyHint: true` **only if the tool writes nothing.** Agents use it to decide when they may
@@ -105,8 +122,9 @@ would let a seat quote text it never received — the exact failure the quote ch
 
 ### Registration strategy
 - Register when a tool is usable in the current state; unregister when it stops being usable.
-- Chrome says *static registration should be the default for most applications.* **This project is
-  the exception and must argue it, not ignore it:** a phase of a dispute is a page state, and the
+- **Chrome guidance, not spec:** Chrome says *static registration should be the default for most
+  applications.* The spec itself has no opinion on registration strategy. **This project is the
+  exception and must argue it, not ignore it:** a phase of a dispute is a page state, and the
   dynamism is the thing being demonstrated. Put that in the README before a judge raises it.
 - Each tool costs context window and latency. Overlapping tools are the main cause of wrong-tool
   selection. No two tools in this catalogue may have overlapping purpose.
@@ -247,7 +265,10 @@ Ranked by how fast each lands:
 3. A multi-party tool surface where the parties **disagree**. Not enemies — two sides of one
    disagreement, who both need the result to be checkable. Every other WebMCP artefact serves a
    single cooperative user.
-4. Tool lifetime tied to a **phase of a process**, not a component's mount.
+4. Tool lifetime tied to a **phase of a process**, not a component's mount, and that is not just
+   our design choice: `unregisterTool()` existed in the spec until PR #147/#156 (Mar 2026) and was
+   removed on purpose, replaced by the `AbortSignal` design. The working group converged on the
+   same answer this project built around.
 
 **The generalized argument, which must appear before any first-person material:**
 1. AI agents increasingly act on people's behalf.
@@ -262,7 +283,9 @@ Ranked by how fast each lands:
 no `place_order`. The largest commerce platform on the web drew its line where we drew ours — the
 consequential act is absent from the surface, not declined at runtime.
 
-**Correct the spec-limitation claim.** The draft spec now has `requestUserInteraction()` on
-`ModelContextClient`. The provenance-annotation gap still stands; "the spec says nothing about human
-confirmation" does not. Cite it and say what it doesn't do: it authorises one call, it does not
-record who authorised it.
+**The spec-limitation claim, corrected again.** `requestUserInteraction()` on `ModelContextClient`
+was proposed, then removed: PR #205 (11 Jun 2026), "Remove ModelContextClient for now." Elicitation
+(a tool asking a human for input mid-call) is back to an open discussion (issues #165, #50), not a
+shipped primitive. Stop citing it as "the nearest existing primitive." That sharpens the headline
+claim rather than weakening it: there is no way to declare which model is behind a tool, full stop,
+verified again against the current spec, with no removed feature left to qualify it.

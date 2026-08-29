@@ -42,22 +42,36 @@ phase, holds a tool that can put a verdict into force.
 Read before Task 0. Each line is sourced from the WebMCP explainer or Chrome's WebMCP docs, and
 each one either changes a task or has to be said out loud in the submission.
 
+Re-checked against the spec repo (github.com/webmachinelearning/webmcp) at HEAD `41d12f0` on
+29 Aug: several items below were stale and are corrected in place, sourced inline, rather than
+listed separately.
+
 **Gates that stop the demo dead**
 
-- **The origin trial registers ONE origin per token.** Five origins means five registrations, or
-  five `<meta http-equiv="origin-trial">` tags. There is no wildcard for subdomains. A judge who
-  opens the deployed site without the flag sees a page with no tools and no explanation. Task 1
-  must therefore do both: register a token per site *and* ship the `webmcpStatus()` banner naming
+- **The origin trial registers per origin.** Chrome's origin-trial console does have a "Match
+  Sub-Domains" option, so the earlier claim that no subdomain wildcard exists was wrong; whether one
+  wildcard token would cover all five of this project's origins (`theboard.app` and its four
+  subdomains) instead of five separate tokens is worth checking, though Task 1 already ships five
+  registrations and this correction is not asking for that to be redone. A judge who opens the
+  deployed site without the flag sees a page with no tools and no explanation either way. Task 1
+  already does both: registers a token per site *and* ships the `webmcpStatus()` banner naming
   `chrome://flags/#enable-webmcp-testing`. The local flag is the demo path; the trial is the
-  "you can try it yourself" path. Never assume the second.
-- **HTTPS is required.** Netlify gives this; `file://` and plain `http://` do not.
+  "you can try it yourself" path. Never assume the second. Also worth knowing: Edge 150 runs its own
+  origin trial, and ChatGPT Desktop already ships support.
+- **HTTPS (or localhost) is required.** Netlify gives this; plain `http://` does not work. `file://`
+  is a separate case: the spec explicitly exempts the `file:` scheme from the origin-isolation
+  check, so file:// is meant to work at spec level, and the earlier claim that it does not was
+  wrong. It is simply not this project's deploy path, since Netlify origins are HTTPS anyway.
 - **`document.modelContext` is supported by no browser by default.** The README must say Chrome
   149+ with the flag, in the first screenful, not in a footnote.
-- **Removed from the API:** `unregisterTool()`, `provideContext()`, `clearContext()`.
-  `navigator.modelContext` is deprecated as of Chromium 150. The AbortController-is-a-lifetime
-  design is not a clever reading of the spec — it is the only mechanism there is.
+- **Removed from the API, on purpose:** `unregisterTool()` was in the spec until PR #147/#156
+  (Mar 2026), then replaced by the `AbortSignal` design; `provideContext()` and `clearContext()` are
+  gone too. `navigator.modelContext` is deprecated as of Chromium 150. This makes the
+  AbortController-is-a-lifetime design something stronger than a clever reading of the spec: it is
+  the direction the working group itself converged on, after trying the named-unregister approach
+  first and dropping it.
 
-**Budgets Chrome publishes, that the plan did not have**
+**Budgets Chrome publishes (guidance, not spec-enforced), that the plan did not have**
 
 | Limit | Chrome's number | Where The Board is exposed |
 |---|---|---|
@@ -88,7 +102,7 @@ loosely in schema... add descriptive errors to allow the model to self-correct")
 description state what the tool does. The read-receipt chain is not fighting the guidance; it is
 the guidance.
 
-**The one place the docs push back**
+**The one place the docs push back (Chrome guidance, not spec)**
 
 Chrome's best-practices page says "for most applications, static registration should be the
 default approach," and treats dynamic registration as complexity to justify. The submission must
@@ -113,12 +127,13 @@ document, a *missing* `exposedTo` exposes tools to the built-in agent. So:
 Say this in the README. An adversarial reader finds it in twenty minutes; better it is already
 there, in the section on what the spec cannot yet express.
 
-**Also update "the limitation I would fix in the spec".** The draft spec now has
-`requestUserInteraction()` on `ModelContextClient` — a way for a tool to ask the user for input
-mid-execution — plus an open consent-management discussion (issue #176). The existing claim that
-there is no provenance annotation still holds; the claim that the spec has nothing to say about
-human confirmation does not. Cite `requestUserInteraction()` as the nearest existing primitive and
-say precisely what it does not do: it authorises one call, it does not record who authorised it.
+**Update "the limitation I would fix in the spec" again, the other way this time.**
+`requestUserInteraction()` on `ModelContextClient` was removed, not added: PR #205 (11 Jun 2026),
+"Remove ModelContextClient for now." Elicitation is back to an open discussion (issues #165 and
+#50), with nothing shipped. So there is no primitive to cite here any more, nearest or otherwise.
+That does not weaken the section's headline claim, it simplifies it: there is no way to declare
+which model is behind a tool, verified again against the current spec, and now with no removed
+feature to qualify it.
 
 **Free corroboration the plan was not using**
 
