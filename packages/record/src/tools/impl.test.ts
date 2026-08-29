@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createToolImpl, withTruncation, type ToolImplDeps } from './impl';
 import { ExhibitStore } from '../model/exhibits';
 import { FactStore } from '../model/facts';
@@ -54,14 +54,14 @@ describe('createToolImpl', () => {
       expect(Object.keys(impl).sort()).toEqual([...new Set(expected)].sort());
     });
 
-    it('truncates an oversized result from every single body in the real map', async () => {
+    // Proves the FACTORY (`withTruncation`) truncates correctly in
+    // isolation, for any shape of body. It does NOT prove the shipped map
+    // was actually built by passing every real body through that factory
+    // — see the fix-round-1 block below for the test that closes that gap.
+    it('withTruncation itself truncates an oversized result, for any body shape (the factory in isolation)', async () => {
       const impl = createToolImpl(ctx.deps);
       const names = Object.keys(impl); // enumerate from the map itself
       const oversized = 'x'.repeat(TOOL_OUTPUT_BUDGET + 500);
-      // A synthetic bodies map sharing the REAL map's keys, run through the
-      // SAME shared factory production code uses — this proves the seam
-      // itself truncates, independent of what any one tool's real business
-      // logic happens to return.
       const oversizedBodies = Object.fromEntries(names.map((n) => [n, async () => oversized]));
       const wrapped = withTruncation(oversizedBodies);
 
@@ -80,6 +80,112 @@ describe('createToolImpl', () => {
     it('does not swallow a thrown refusal — truncation wraps success, never catches an error', async () => {
       const wrapped = withTruncation({ cite: async () => { throw new Error('seat1 holds no assessment for F1'); } });
       await expect(wrapped.cite({}, ORIGIN.seat1)).rejects.toThrow('seat1 holds no assessment for F1');
+    });
+
+    // ---------------------------------------------------------------
+    // Fix round 1 (adversarial review), IMPORTANT 2: the test above proves
+    // the factory works; it manufactures its OWN wrapped body for every
+    // key, so it would stay green even if a future change did
+    // `return { ...withTruncation(bodies), list_facts: rawBody }` — a real,
+    // unwrapped body added under a new tool name, never touched by
+    // `withTruncation` at all. The ruling asked for a tool to be UNADDABLE
+    // without passing through the factory; this closes that gap by driving
+    // every REAL body, with real dependencies and real arguments, to a
+    // genuinely oversized REAL result and asserting the notice — for every
+    // single key `createToolImpl` actually exports.
+    //
+    // Each invocation exploits a real, legitimate way that tool could
+    // return >1500 characters: a free-text argument the schema never caps
+    // (`name`, `text`, `because`, `reasoning`, `reason`), a page/line whose
+    // real content is long, or — for `cite`, whose return is otherwise a
+    // short list of ids — a factId that is itself long (nothing in
+    // `AssessmentStore`/`VerdictStore` bounds a factId's length; CLAUDE.md
+    // §2's own rule is "validate strictly in code, loosely in schema").
+    // ---------------------------------------------------------------
+    describe('fix round 1: every real body, driven with real arguments, truncates a real oversized result', () => {
+      const HUGE = 'x'.repeat(2000);
+      const iso = '2026-08-20T09:00:00Z';
+
+      type Invoke = (impl: Record<string, (args: any, origin: string) => Promise<unknown>>, c: ReturnType<typeof buildDeps>) => Promise<unknown>;
+
+      const invocations: Record<string, Invoke> = {
+        file_exhibit: (impl) => impl.file_exhibit({ name: HUGE, kind: 'text', content: 'hello there' }, ORIGIN.A),
+
+        file_fact: (impl) => impl.file_fact({ text: HUGE, exhibitId: 'E1', locator: {} }, ORIGIN.A),
+
+        concede: (impl, c) => {
+          c.facts.file({ side: 'A', text: HUGE, points: { exhibitId: 'E1', locator: {} } });
+          return impl.concede({ factId: 'F1' }, ORIGIN.B);
+        },
+
+        dispute: async (impl, c) => {
+          await c.exhibits.add({ side: 'A', kind: 'text', name: 'x', bytes: bytes('the sky is blue'), filedAt: iso });
+          c.facts.file({ side: 'A', text: 'sky colour', points: { exhibitId: 'E1', locator: {} } });
+          await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.B);
+          return impl.dispute({ factId: 'F1', exhibitId: 'E1', quote: 'the sky is blue', because: HUGE }, ORIGIN.B);
+        },
+
+        object: (impl) => impl.object({ text: HUGE }, ORIGIN.A),
+
+        open_exhibit: async (impl, c) => {
+          await c.exhibits.add({ side: 'A', kind: 'text', name: 'big', bytes: bytes(HUGE), filedAt: iso });
+          return impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat1);
+        },
+
+        extract_text: async (impl, c) => {
+          await c.exhibits.add({ side: 'A', kind: 'pdf', name: 'p.pdf', bytes: bytes(''), filedAt: iso, pages: [HUGE] });
+          await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat2);
+          return impl.extract_text({ exhibitId: 'E1', page: 1 }, ORIGIN.seat2);
+        },
+
+        search_exhibits: async (impl, c) => {
+          await c.exhibits.add({ side: 'A', kind: 'text', name: 'big', bytes: bytes(`${HUGE} needle`), filedAt: iso });
+          return impl.search_exhibits({ query: 'needle' }, ORIGIN.seat1);
+        },
+
+        record_assessment: async (impl, c) => {
+          await c.exhibits.add({ side: 'A', kind: 'text', name: 'x', bytes: bytes('the sky is blue'), filedAt: iso });
+          c.facts.file({ side: 'A', text: 'sky colour', points: { exhibitId: 'E1', locator: {} } });
+          await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat1);
+          return impl.record_assessment(
+            { factId: 'F1', exhibitId: 'E1', locator: {}, finding: 'supported', quote: 'the sky is blue', because: HUGE },
+            ORIGIN.seat1
+          );
+        },
+
+        // No length-checked factId anywhere in the schema or the stores —
+        // recording an assessment directly against the store (bypassing
+        // file_fact, which no real caller needs to have used first; see
+        // AssessmentStore.record) sets up a real, held assessment under a
+        // deliberately huge factId, then `cite` — the real tool body — is
+        // what returns it.
+        cite: async (impl, c) => {
+          await c.exhibits.add({ side: 'A', kind: 'text', name: 'x', bytes: bytes('the sky is blue'), filedAt: iso });
+          c.receipts.markOpened('seat1', 'E1');
+          c.assessments.record({ seat: 'seat1', factId: HUGE, exhibitId: 'E1', locator: {}, finding: 'supported', quote: 'the sky is blue', because: 'ok' });
+          return impl.cite({ factId: HUGE }, ORIGIN.seat1);
+        },
+
+        draft_verdict: (impl) => impl.draft_verdict({ outcome: 'UPHELD', reasoning: HUGE }, ORIGIN.seat1),
+
+        spend_appeal: (impl) => impl.spend_appeal({ reason: HUGE }, ORIGIN.A)
+      };
+
+      it('covers every key in the real map — a tool added without an entry here fails this, not silently', () => {
+        const impl = createToolImpl(buildDeps().deps);
+        expect(Object.keys(invocations).sort()).toEqual(Object.keys(impl).sort());
+      });
+
+      for (const [name, invoke] of Object.entries(invocations)) {
+        it(`${name}: real dependencies, real arguments, real oversized result — still truncates`, async () => {
+          const fresh = buildDeps();
+          const impl = createToolImpl(fresh.deps);
+          const out = (await invoke(impl, fresh)) as string;
+          expect(typeof out, `${name} did not return a string (was truncation skipped entirely?)`).toBe('string');
+          expect(out.length, `${name}'s real output was not actually oversized, or did not truncate`).toBeLessThanOrEqual(TOOL_OUTPUT_BUDGET);
+          expect(out, `${name} truncated silently — no notice`).toContain('truncated');
+        });
+      }
     });
   });
 
@@ -214,18 +320,48 @@ describe('createToolImpl', () => {
   });
 
   describe('spend_appeal', () => {
-    it('spends through the phase machine for the calling side, via the lazy thunk', async () => {
+    // Fix round 1, MINOR 4 (adversarial review): the mutation is deferred
+    // past a macrotask boundary (see spend_appeal's own comment in
+    // impl.ts), so every test in this block runs under fake timers and
+    // advances them explicitly — a plain `await` on the call is no longer
+    // enough to observe the state change.
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('spends through the phase machine for the calling side, via the lazy thunk, once the deferred work runs', async () => {
       const impl = createToolImpl(ctx.deps);
       await impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.A);
+      await vi.runAllTimersAsync();
       expect(ctx.spentAppeals).toEqual(['A']);
     });
 
     // Gap found and fixed while wiring this for real: nothing previously
     // called `enter('REVIEW')` after an appeal was spent, so the phase was
     // left stuck at VERDICT with no button in the shipped UI to leave it.
-    it('re-opens REVIEW after spending, per design spec v3 §9', async () => {
+    it('re-opens REVIEW after spending, per design spec v3 §9, once the deferred work runs', async () => {
       const impl = createToolImpl(ctx.deps);
       await impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.B);
+      await vi.runAllTimersAsync();
+      expect(ctx.enteredPhases).toEqual(['REVIEW']);
+    });
+
+    // Fix round 1, MINOR 4: the actual defect being fixed. Proves the call
+    // has already resolved with its result BEFORE the appeal is spent or
+    // REVIEW is re-entered — i.e. the abort cannot land while THIS
+    // execution is still "in flight" under its own signal, regardless of
+    // which Chrome version's abort-cancellation behaviour is filming.
+    it('resolves with its result before spending the appeal or touching the phase — the fix itself', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const raw = await impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.A);
+      // The call already resolved successfully...
+      expect(JSON.parse(raw as string)).toMatchObject({ spent: true, side: 'A' });
+      // ...and yet nothing has actually happened to the phase machine yet.
+      expect(ctx.spentAppeals).toEqual([]);
+      expect(ctx.enteredPhases).toEqual([]);
+
+      await vi.runAllTimersAsync();
+
+      expect(ctx.spentAppeals).toEqual(['A']);
       expect(ctx.enteredPhases).toEqual(['REVIEW']);
     });
   });

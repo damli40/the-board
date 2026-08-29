@@ -101,10 +101,25 @@ export interface ToolImplDeps {
    * below calls it — lazily, at execution time, long after wiring is done.
    */
   getPhaseMachine: () => PhaseMachine;
+  /**
+   * Fix round 1, MINOR 3 (adversarial review): `file_exhibit` used to call
+   * `new Date().toISOString()` directly. That is correct for a LIVE filing
+   * — a real filing genuinely happens at a real wall-clock instant — but it
+   * meant the "byte-identical" claim scenario.ts makes only actually held
+   * for the pre-seeded fixture, not for anything filed live through this
+   * body, and nothing in the type signature said so. Injected the same way
+   * `Ledger`'s own `clock` is (a constructor/factory parameter defaulting
+   * to wall clock), so a caller CAN pin it — e.g. a future test of
+   * `file_exhibit` itself that wants a fixed `filedAt` — without every
+   * other caller needing to change. Defaults to wall clock, so this is a
+   * no-op for App.tsx's real wiring.
+   */
+  now?: () => string;
 }
 
 export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
   const { exhibits, facts, receipts, assessments, disputes, verdicts, getPhaseMachine } = deps;
+  const now = deps.now ?? (() => new Date().toISOString());
 
   const bodies: Record<string, ToolRun> = {
     file_exhibit: async (args, origin) => {
@@ -117,7 +132,7 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
         kind,
         name: String(args?.name ?? ''),
         bytes,
-        filedAt: new Date().toISOString(),
+        filedAt: now(),
         sourceUrl: args?.sourceUrl,
         captured: args?.sourceUrl ? 'party-supplied' : undefined,
         pages
@@ -254,12 +269,39 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
     // appeal left the phase stuck at VERDICT with no way to re-open review
     // through the shipped UI at all. This is the one part of the design
     // this tool body is now responsible for completing.
+    //
+    // Fix round 1, MINOR 4 (adversarial review): `spendAppeal(side)` aborts
+    // the exact AbortController THIS call is registered under — this body
+    // is running as an execution of the `spend_appeal` tool whose signal
+    // is `appealA`/`appealB`'s own. CLAUDE.md §1: Chrome 152 and earlier
+    // cancel an execution already in flight when its registration signal
+    // aborts; 153+ does not; we must not write logic that depends on
+    // either. So the mutation is deferred past a MACROTASK boundary, not
+    // just an `await` — the promise chain that delivers this call's own
+    // result back to whatever invoked it (`Ledger.wrap`'s `await
+    // run(...)`, then Chrome's own `executeTool` resolution) is itself a
+    // run of microtasks, so only a `setTimeout` boundary guarantees all of
+    // that has already completed before the abort (and the `enter`
+    // re-registration it triggers) ever runs. The visible result is
+    // unchanged: the card still leaves the hand and the phase still moves
+    // to REVIEW — just after this call has already resolved as a success,
+    // never while it is still the "in-flight execution" that could be cut
+    // short depending on which Chrome version is filming.
     spend_appeal: async (args, origin) => {
       const side = requireSide(actorFor(origin));
       const phaseMachine = getPhaseMachine();
-      phaseMachine.spendAppeal(side);
-      await phaseMachine.enter('REVIEW');
-      return { spent: true, side, reason: args?.reason, contests: args?.contests };
+      const result = { spent: true, side, reason: args?.reason, contests: args?.contests };
+      setTimeout(() => {
+        try {
+          phaseMachine.spendAppeal(side);
+          phaseMachine.enter('REVIEW').catch((err) => {
+            console.error('spend_appeal: phaseMachine.enter("REVIEW") failed after the appeal was already recorded as spent', err);
+          });
+        } catch (err) {
+          console.error('spend_appeal: deferred phase transition failed', err);
+        }
+      }, 0);
+      return result;
     }
   };
 

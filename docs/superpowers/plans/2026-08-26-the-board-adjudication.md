@@ -3179,7 +3179,7 @@ counterparty. Generic contract-shaped language only.
 5. Seat 2 opens the PDF, calls `extract_text`, `search_exhibits`, then `assess`. Seat 1 opens only the summary.
 6. Have a seat attempt `assess` with a quote that is not in the exhibit → **refused, reason rendered**
 7. Have a seat attempt `cite` on a fact it never assessed → **refused, reason rendered**
-8. Advance to VERDICT → both seats draft → **the split table renders, `differing input: E2`**
+8. Advance to VERDICT → both seats draft → **the split table renders, `differing input: E1`**
 9. Side A spends its appeal → **the card leaves A's hand; B's card stays**
 10. Press **return with note**, seat re-reads, seats agree, press **confirm**
 
