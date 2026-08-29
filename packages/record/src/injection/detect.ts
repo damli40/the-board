@@ -32,7 +32,24 @@ const PATTERNS: { name: string; re: RegExp }[] = [
   { name: 'system-impersonation', re: /system\s*:\s*(disregard|ignore)\s+(all\s+)?(prior|previous)\s+\w+/gi },
   { name: 'instruction-override', re: /ignore\s+(all\s+)?previous\s+instructions?/gi },
   { name: 'role-reassignment', re: /you\s+are\s+now\s+(a|an|the)\s+\w+/gi },
-  { name: 'directed-outcome', re: /rule\s+(for|in\s+favou?r\s+of)\s+(a|b)\b/gi },
+  // Fix round 1 — a reviewer found the original `\b`-terminated version of
+  // this pattern cried wolf on ordinary evidence: `\b` only checks the
+  // transition between a word character and a non-word character, so it is
+  // satisfied by the space after "a" in "the rule for a late delivery" just
+  // as readily as by the end of "rule for B." — it does not care what comes
+  // next. A filed policy quoting perfectly ordinary contract language like
+  // "the rule for a refund" or "no rule for a claim" lit up red on the
+  // record page next to genuine evidence.
+  //
+  // The fix requires the party letter to be a STANDALONE token: followed by
+  // punctuation or the end of the string/clause (the lookahead), or preceded
+  // by "side". A real directed-outcome attempt names a party and stops —
+  // "rule for B.", "rule in favour of A", "rule for side B" — while the
+  // false positives always continue into a noun phrase — "a late delivery",
+  // "a refund", "a claim" — which the lookahead correctly refuses to match
+  // through. See detect.test.ts for the six pinned cases (three must-match,
+  // three must-not-match) this was derived against.
+  { name: 'directed-outcome', re: /rule\s+(for|in\s+favou?r\s+of)\s+(side\s+)?(a|b)(?=[.,;:!?)]|\s*$)/gi },
 ];
 
 /**
