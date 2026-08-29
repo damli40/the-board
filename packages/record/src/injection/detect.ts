@@ -37,32 +37,59 @@ const PATTERNS: { name: string; re: RegExp }[] = [
   // transition between a word character and a non-word character, so it is
   // satisfied by the space after "a" in "the rule for a late delivery" just
   // as readily as by the end of "rule for B." — it does not care what comes
-  // next. A filed policy quoting perfectly ordinary contract language like
-  // "the rule for a refund" or "no rule for a claim" lit up red on the
-  // record page next to genuine evidence. Fixed round 1 by requiring the
-  // party letter be a standalone token: followed by punctuation or the end
-  // of the string/clause, or preceded by "side".
+  // next. Fixed by requiring the party letter be a standalone token:
+  // followed by punctuation or the end of the string/clause, or preceded by
+  // "side".
   //
-  // Fix round 2 — that punctuation/end-of-clause guard was over-tightened:
-  // it was only ever needed for "a", because "a" doubles as the indefinite
-  // article. "b" has no such collision, so guarding it the same way made
-  // "rule for B in this matter" and "rule for B because A lied" — more
-  // natural attack phrasings than the bare "rule for B." in the demo
-  // fixture — stop matching. The guard is now asymmetric: "a" keeps the
-  // lookahead (punctuation, end of string, or nothing after it); "b" uses a
-  // plain `\b` word boundary, same as the original pattern, because a
-  // standalone "b" was never the false-positive source — the indefinite
-  // article is spelled "a", not "b". Also added "party" alongside "side" as
-  // a second, equally plausible way to introduce the letter ("rule for
-  // party B"). Deliberately not widened beyond that: verbs this pattern
-  // never covered (find/decide/rule against) are scope creep on a demo
-  // detector and would undo the false-positive work above.
+  // Fix round 2 — that guard was over-tightened: it was only ever needed
+  // for "a", because "a" doubles as the indefinite article. "b" has no such
+  // collision, so guarding it the same way made "rule for B in this
+  // matter" stop matching. Made asymmetric: "a" keeps the lookahead; "b"
+  // uses a plain `\b`. Also added "party" alongside "side" as a second way
+  // to introduce the letter.
   //
-  // See detect.test.ts for the full pinned case set (five must-match, three
-  // must-not-match) this was derived against.
+  // Fix round 3 — the round-2 asymmetry still applied the article-guard
+  // lookahead to "a" even when "side" or "party" immediately precedes it,
+  // where "a" cannot possibly be the indefinite article ("rule for side a
+  // late delivery" is not English). That made the detector systematically
+  // better at catching an attempt aimed at B than an identical one aimed at
+  // A — a per-party blind spot this project's whole claim of even-handed
+  // treatment cannot afford. Fixed by relaxing to a plain `\b` for BOTH
+  // letters whenever "side"/"party" precedes them, for both connectors
+  // ("for" and "in favour of").
+  //
+  // That relaxation reopens a different false positive: "no rule for party
+  // A to follow" ASSERTS THE ABSENCE of a rule — the opposite of a directed
+  // outcome — so every side/party-relaxed branch additionally requires
+  // "rule" not be immediately preceded by the standalone word "no" (a
+  // negative lookbehind, scoped with `\b` so it can't misfire on a word
+  // that merely ends in "no", e.g. "the casino rule for B.").
+  //
+  // DECISION (asked for explicitly in round 3): "in favour of" does NOT get
+  // the same full relaxation "for" without a prefix keeps needing. "in
+  // favour of a refund" is exactly as plausible ordinary language as "for a
+  // refund" — the indefinite-article collision is connector-independent —
+  // so relaxing "favour of" wholesale would reopen the very false-positive
+  // class round 1 closed, just behind a different preposition. "in favour
+  // of A" without "side"/"party" therefore keeps the article-guard lookahead,
+  // same as bare "for A".
+  //
+  // RESIDUE, NAMED PLAINLY: without a "side"/"party" prefix, this pattern
+  // still catches a directed outcome naming B mid-clause ("rule for B in
+  // this matter", "rule in favour of B because ...") but MISSES the
+  // identical phrasing naming A ("rule for A in this matter", "rule in
+  // favour of A in this matter") — because "a" is also the indefinite
+  // article and "b" is not, so only "a" needs the terminal-or-punctuation
+  // guard to avoid matching "a late delivery", "a refund", "a claim". This
+  // is a deliberately accepted, documented limit, not an unnoticed gap: a
+  // bare "rule for A ..." only escapes detection when it both lacks a
+  // "side"/"party" prefix AND continues past the letter into more text: add
+  // either "side"/"party" or a terminal period and it is caught the same as
+  // B. See detect.test.ts's pinned must-match / must-not-match / judgment-
+  // call cases for the exact boundary this was derived against.
   {
     name: 'directed-outcome',
-    re: /rule\s+(for|in\s+favou?r\s+of)\s+(?:(?:side|party)\s+)?(?:a(?=[.,;:!?)]|\s*$)|b\b)/gi,
+    re: /(?:(?<!\bno\s)rule\s+for\s+(?:side|party)\s+(?:a|b)\b|rule\s+for\s+(?:a(?=[.,;:!?)]|\s*$)|b\b)|(?<!\bno\s)rule\s+in\s+favou?r\s+of\s+(?:side|party)\s+(?:a|b)\b|rule\s+in\s+favou?r\s+of\s+(?:a(?=[.,;:!?)]|\s*$)|b\b))/gi,
   },
 ];
 
