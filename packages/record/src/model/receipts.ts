@@ -8,6 +8,12 @@ import { checkQuote } from './quote';
 export class Receipts {
   private opened = new Map<Actor, Set<string>>();
 
+  // Ruling 2 (controller, task 9): this method performs no existence check
+  // on `exhibitId` — the validating caller is the `open_exhibit` tool body
+  // in packages/record/src/tools/impl.ts, which throws `no such exhibit:
+  // <id>` BEFORE calling this, so a phantom id can never ride into a read
+  // receipt (and from there into `VerdictStore.draft`'s `opened` list and
+  // `computeSplit`'s `differingInput`).
   markOpened(actor: Actor, exhibitId: string): void {
     if (!this.opened.has(actor)) this.opened.set(actor, new Set());
     this.opened.get(actor)!.add(exhibitId);

@@ -6,7 +6,34 @@ export interface LedgerEntry {
   detail?: string;
 }
 
-export type ToolRun = (args: any) => Promise<unknown>;
+/**
+ * Task 9: a raw tool body receives the calling ORIGIN as its second
+ * parameter, not just `args`. This is deliberate, and it is the only place
+ * in the whole pipeline where actor identity can be attached safely.
+ *
+ * `registry.ts`'s `open()` registers the exact same shared function
+ * (`this.impl[spec.name]`) once per actor in a spec — it never wraps a
+ * fresh closure per actor — so a body cannot otherwise learn who is
+ * calling. It must not learn it from `args` either: nothing stops an
+ * adversarial model from putting `{ seat: 'seat2' }` in its own call
+ * arguments, and trusting that would let any actor impersonate any other
+ * one, which is exactly the boundary this whole project exists to make the
+ * browser (not the app) enforce. Origin is the one thing that cannot be
+ * forged this way: `exposedTo` scopes a registration to one origin, so
+ * whichever code path actually invokes `execute` is running as that
+ * origin, structurally.
+ *
+ * Chrome's own `execute(args, { signal })` callback carries no such field,
+ * so this can't be threaded through Chrome's call — it has to be threaded
+ * through OUR wrapping instead. `Ledger.wrap` is that wrapping: it already
+ * receives `origin` as a constructor-time argument (for logging), and the
+ * function it RETURNS still matches Chrome's exact one-argument contract
+ * (`(args) => Promise<unknown>`) — only the inner `run` this class calls on
+ * the way there gets the extra parameter. `packages/record/src/tools/impl.ts`
+ * is the one place that reads it, mapping origin back to actor via
+ * `config/origins.ts`'s ORIGIN table.
+ */
+export type ToolRun = (args: any, origin: string) => Promise<unknown>;
 
 /**
  * One recorder wrapped around execute. Nobody has to remember to log,
@@ -18,10 +45,10 @@ export class Ledger {
 
   constructor(private clock: () => number = () => Date.now()) {}
 
-  wrap(origin: string, tool: string, run: ToolRun): ToolRun {
+  wrap(origin: string, tool: string, run: ToolRun): (args: any) => Promise<unknown> {
     return async (args: any) => {
       try {
-        const result = await run(args);
+        const result = await run(args, origin);
         this.entries.push({ origin, tool, at: this.clock(), ok: true });
         this.notify();
         return result;

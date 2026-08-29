@@ -5,15 +5,10 @@
 // ledger tape, the exhibit list, the verdict panel with NO RULE CITED and
 // the citation trace, and the confirm bar.
 //
-// Step 9 (task 9) replaces the empty `impl` map below with real tool bodies
-// (`src/tools/impl.ts`) and loads a fixed scenario fixture
-// (`src/scenario.ts`) — this task explicitly does not create either file.
-// Until then, any tool a panel calls throws `${name} not implemented`, which
-// the Ledger still records as a genuine refusal: the refusal-surfacing
-// pipeline (registry -> ledger -> Docket's ledger tape) is real and
-// demonstrable today, even though the SPECIFIC scripted refusals the video
-// needs (a bad quote, an uncited assessment, the injection attempt reaching
-// for `confirm`) only exist once Task 9's fixture is loaded.
+// Task 9 wires the tool bodies (`src/tools/impl.ts`) into the registry below
+// and loads the fixed scenario fixture (`src/scenario.ts`) once FILING
+// opens, so the exhibit list, docket and (once a seat reads and drafts) the
+// verdict panel all have real material the instant the page comes up.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Actor, Phase } from './model/types';
 import { ORIGIN } from './config/origins';
@@ -27,6 +22,8 @@ import { FactStore } from './model/facts';
 import { DisputeStore } from './model/disputes';
 import { VerdictStore } from './model/verdict';
 import { CaseOutcome } from './model/outcome';
+import { createToolImpl } from './tools/impl';
+import { loadScenario } from './scenario';
 import { ACTORS, ACTOR_LABEL, ACTOR_ACCENT } from './ui/theme';
 import { Manifest } from './ui/Manifest';
 import { Docket } from './ui/Docket';
@@ -64,11 +61,6 @@ function useEngine(mc: ModelContextLike) {
 
   if (!ledger.current) {
     ledger.current = new Ledger();
-    // Task 9 supplies the real tool bodies (src/tools/impl.ts) — see file
-    // header. An empty map here means every call throws "not implemented",
-    // which the ledger still records as a real (if generic) refusal.
-    registry.current = new ToolRegistry(mc, ledger.current, {});
-    phaseMachine.current = new PhaseMachine(registry.current);
     exhibits.current = new ExhibitStore();
     receipts.current = new Receipts();
     facts.current = new FactStore();
@@ -76,6 +68,27 @@ function useEngine(mc: ModelContextLike) {
     disputes.current = new DisputeStore(exhibits.current, receipts.current);
     verdicts.current = new VerdictStore(assessments.current, receipts.current, facts.current, exhibits.current);
     caseOutcome.current = new CaseOutcome();
+
+    // `createToolImpl` needs a `PhaseMachine`, and `PhaseMachine` needs a
+    // fully constructed `ToolRegistry` — which needs this whole impl map at
+    // construction time. Breaking the cycle: build the registry with an
+    // impl map whose `getPhaseMachine` thunk reads `phaseMachine.current`
+    // lazily, at call time (only `spend_appeal` ever calls it), long after
+    // the line below has filled it in. See ToolImplDeps's own comment.
+    const impl = createToolImpl({
+      exhibits: exhibits.current,
+      facts: facts.current,
+      receipts: receipts.current,
+      assessments: assessments.current,
+      disputes: disputes.current,
+      verdicts: verdicts.current,
+      getPhaseMachine: () => {
+        if (!phaseMachine.current) throw new Error('phase machine not ready yet');
+        return phaseMachine.current;
+      }
+    });
+    registry.current = new ToolRegistry(mc, ledger.current, impl);
+    phaseMachine.current = new PhaseMachine(registry.current);
   }
 
   return {
@@ -116,6 +129,19 @@ export function App() {
   useEffect(() => {
     if (!status.available) return;
     void engine.phaseMachine.enter('FILING').then(refresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status.available]);
+
+  // Scenario.ts: seed the fixed case (five exhibits, seven facts, fixed ids
+  // and ISO timestamps — see its own header) once, before any live tool
+  // call happens. `scenarioLoaded` guards against React StrictMode's
+  // double-invoke of effects in dev, which would otherwise file everything
+  // twice and shift every id from E1..E5/F1..F7 to E1..E10/F1..F14.
+  const scenarioLoaded = useRef(false);
+  useEffect(() => {
+    if (!status.available || scenarioLoaded.current) return;
+    scenarioLoaded.current = true;
+    void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then(refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.available]);
 

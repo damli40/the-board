@@ -35,6 +35,21 @@ describe('Ledger', () => {
     expect(new Ledger(() => 1000).countsFor(ORIGIN.A)).toEqual({});
   });
 
+  // Task 9: `run` now receives the calling origin as its second argument —
+  // it's the only forgery-proof channel a tool body has for learning which
+  // actor is calling (see the type's own comment in ledger.ts). This is the
+  // seam tools/impl.ts's actor lookup depends on; without it, every
+  // actor-aware body (open_exhibit, record_assessment, cite, spend_appeal,
+  // file_exhibit, file_fact, concede, dispute) would have no sound way to
+  // know who called them.
+  it('passes the origin through to the wrapped body as a second argument', async () => {
+    const ledger = new Ledger(() => 1000);
+    let seen: string | undefined;
+    const run = ledger.wrap(ORIGIN.seat1, 'open_exhibit', async (_args, origin) => { seen = origin; return 'ok'; });
+    await run({});
+    expect(seen).toBe(ORIGIN.seat1);
+  });
+
   // Task 8 fix round 1, Critical: a panel's tool call runs through Chrome's
   // own cross-origin machinery, not through any call the record page's React
   // tree makes — so the record page can only ever learn "a receipt landed"

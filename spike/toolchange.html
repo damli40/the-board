@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>toolchange spike — UNRUN</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, monospace; background: #0a0a0a; color: #ddd; margin: 0; padding: 24px; }
+  h1 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.2em; color: #888; }
+  #log { white-space: pre-wrap; border: 1px solid #333; border-radius: 4px; padding: 12px; background: #111; }
+  .ok { color: #7fd; }
+  .warn { color: #fc6; }
+  .err { color: #f77; }
+  p.note { color: #999; max-width: 60ch; }
+</style>
+</head>
+<body>
+<h1>toolchange spike — see docs/evidence/spike-toolchange.md — UNRUN</h1>
+<p class="note">
+  Registers one tool at load, adds a second tool 20s later, aborts the whole
+  registration at 40s. Every step is logged below AND to the console. Point
+  a third-party WebMCP client (a browser agent extension, Model Context Tool
+  Inspector, etc.) at this page while it runs and see whether it notices
+  each change without a reload — this page cannot answer that on its own,
+  only produce the state changes to test against.
+</p>
+<div id="log">(waiting for WebMCP...)</div>
+
+<script>
+(function () {
+  const logEl = document.getElementById('log');
+  const lines = [];
+
+  function log(msg, cls) {
+    const at = new Date().toISOString().split('T')[1].replace('Z', '');
+    const line = `[${at}] ${msg}`;
+    lines.push(cls ? { line, cls } : { line, cls: '' });
+    console.log(line);
+    logEl.innerHTML = lines.map((l) => l.cls ? `<span class="${l.cls}">${l.line}</span>` : l.line).join('\n');
+  }
+
+  // CLAUDE.md §1: navigator.modelContext is deprecated as of Chromium 150
+  // but still the documented fallback; feature-detect both.
+  const mc = document.modelContext ?? navigator.modelContext;
+
+  if (!mc || typeof mc.registerTool !== 'function') {
+    log('WebMCP not available on this page. Need chrome://flags/#enable-webmcp-testing (Chrome 149+), or a browser that ships the origin trial / supports it by default.', 'err');
+    return;
+  }
+
+  log('WebMCP available. Beginning the spike.', 'ok');
+
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  async function registerToolNamed(name, description) {
+    await mc.registerTool(
+      {
+        name,
+        title: name,
+        description,
+        inputSchema: { type: 'object', properties: {}, required: [] },
+        annotations: { readOnlyHint: true, untrustedContentHint: false },
+        execute: async () => `${name} called at ${new Date().toISOString()}`
+      },
+      { signal }
+    );
+    log(`registered "${name}"`, 'ok');
+  }
+
+  async function run() {
+    await registerToolNamed('spike_tool_one', 'The first tool, registered immediately on page load.');
+    log('t+0s: one tool registered. If a client is attached, check its tool list NOW.');
+
+    setTimeout(async () => {
+      log('t+20s: adding a second tool WITHOUT a reload...');
+      try {
+        await registerToolNamed('spike_tool_two', 'The second tool, added 20 seconds after the first, same page, no reload.');
+        log('t+20s: second tool registered. Check whether the client already sees it, or only after its own next getTools() call.', 'warn');
+      } catch (err) {
+        log(`t+20s: registerTool rejected — ${err instanceof Error ? err.message : String(err)}`, 'err');
+      }
+    }, 20000);
+
+    setTimeout(() => {
+      log('t+40s: aborting the registration signal — both tools should stop existing for anyone.', 'warn');
+      controller.abort();
+      log('t+40s: abort() called. Check whether a client that had already listed these tools now fails calling them, and whether its OWN tool list drops them without being told to look again.', 'warn');
+    }, 40000);
+  }
+
+  void run();
+})();
+</script>
+</body>
+</html>
