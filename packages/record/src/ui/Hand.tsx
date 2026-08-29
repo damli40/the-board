@@ -1,0 +1,135 @@
+// Storyboard component 3 (the phase ribbon), the card half of it: "each
+// side's currently-granted tools as face-up cards... the exit animation is
+// the 1:51 beat — file_fact leaving both hands at the same instant — so it
+// must be legible at 1x speed, not a fade."
+//
+// Deviation from the brief's Step 6 ("use `motion` for enter and exit"):
+// no animation library is installed in this repo and none of Tasks 1-7
+// needed one, so this hand-rolls the same effect with a plain CSS
+// transition instead of adding a new dependency for a single component.
+// The exit is NOT a fade: the card holds its layout for one animation
+// frame, then dims, desaturates and drops out over ~420ms (`useVanishing`
+// below), matching the storyboard's "dim, desaturate, and drop out" —
+// legible at 1x speed, not a cross-fade a viewer could blink through.
+import { useEffect, useRef, useState } from 'react';
+import type { Manifest } from '../webmcp/registry';
+import { ACTOR_ACCENT, ACTOR_LABEL } from './theme';
+
+type Card = { tool: string; used: number; lends: boolean };
+type Slot = { card: Card; vanishing: boolean };
+
+const VANISH_MS = 420;
+
+/**
+ * Tracks the current granted set plus a trailing "vanishing" set: a tool that
+ * drops out of `granted` is not removed immediately — it is flagged
+ * `vanishing` for one CSS transition, THEN removed. Without this, a
+ * withdrawal is invisible: the chip is just gone on the next render, which
+ * reads as a redraw rather than an event (exactly what CLAUDE.md's
+ * "transition indicators for invisible work" rule warns against).
+ */
+function useVanishingSlots(cards: Card[]): Slot[] {
+  const [slots, setSlots] = useState<Slot[]>(() => cards.map((card) => ({ card, vanishing: false })));
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
+  useEffect(() => {
+    const liveNames = new Set(cards.map((c) => c.tool));
+    setSlots((prev) => {
+      const next: Slot[] = [];
+      // Keep every still-live card (refresh its count), and any not-yet-vanished
+      // card that just dropped out — marked vanishing instead of deleted.
+      for (const slot of prev) {
+        if (liveNames.has(slot.card.tool)) {
+          // A tool that reappears before its own vanish timer fired (a
+          // lifetime closing and reopening faster than VANISH_MS) is
+          // un-vanished here; the stale timer below is guarded against
+          // removing it regardless, but clearing it too avoids a leaked
+          // timer reference.
+          const pending = timers.current.get(slot.card.tool);
+          if (pending) { clearTimeout(pending); timers.current.delete(slot.card.tool); }
+          const fresh = cards.find((c) => c.tool === slot.card.tool)!;
+          next.push({ card: fresh, vanishing: false });
+        } else if (!slot.vanishing) {
+          next.push({ card: slot.card, vanishing: true });
+          const t = setTimeout(() => {
+            // Guarded on `vanishing` too: if the tool came back before this
+            // fired, the branch above already flipped it to `vanishing:
+            // false`, and this must not delete a now-live card.
+            setSlots((s) => s.filter((x) => !(x.card.tool === slot.card.tool && x.vanishing)));
+            timers.current.delete(slot.card.tool);
+          }, VANISH_MS);
+          timers.current.set(slot.card.tool, t);
+        } else {
+          next.push(slot); // already vanishing, timer already scheduled
+        }
+      }
+      // Any newly granted card not already tracked.
+      for (const card of cards) {
+        if (!next.some((s) => s.card.tool === card.tool)) next.push({ card, vanishing: false });
+      }
+      return next;
+    });
+    return () => { for (const t of timers.current.values()) clearTimeout(t); timers.current.clear(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cards.map((c) => `${c.tool}:${c.used}`).join(',')]);
+
+  return slots;
+}
+
+export function Hand({ manifest }: { manifest: Manifest }) {
+  const accent = ACTOR_ACCENT[manifest.actor];
+  const cards = [...manifest.granted].sort((a, b) => a.tool.localeCompare(b.tool));
+  const slots = useVanishingSlots(cards);
+
+  return (
+    <div data-testid={`hand-${manifest.actor}`} className="flex flex-col gap-1 min-w-[9rem]">
+      <div className={`text-[10px] uppercase tracking-widest ${accent.text} opacity-80`}>{ACTOR_LABEL[manifest.actor]}</div>
+      <div className="flex flex-wrap gap-1.5 min-h-[1.75rem]">
+        {slots.length === 0 && <span className="text-neutral-700 text-xs italic">empty hand</span>}
+        {slots.map(({ card, vanishing }) => (
+          <span
+            key={card.tool}
+            data-testid={`chip-${manifest.actor}-${card.tool}`}
+            data-state={vanishing ? 'vanishing' : 'live'}
+            className={[
+              'font-mono text-xs px-2 py-1 rounded border transition-all duration-[420ms] ease-out',
+              vanishing
+                ? 'opacity-0 saturate-0 -translate-y-1 scale-90 border-neutral-800 bg-neutral-900 text-neutral-600'
+                : `opacity-100 saturate-100 translate-y-0 scale-100 ${accent.border} ${accent.bg} text-neutral-100`,
+            ].join(' ')}
+          >
+            {card.tool}
+            {card.used > 0 && <span className="ml-1 text-neutral-500">×{card.used}</span>}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The appeal socket. Unlike an ordinary chip, a spent appeal is drawn as a
+ * permanently empty slot rather than simply disappearing — "the appeal chip,
+ * once spent, leaves a permanently empty socket" is the one card in this
+ * project whose ABSENCE has its own fixed layout position, because it never
+ * comes back (PhaseMachine.appealSpent is permanent, unlike a lifetime that
+ * merely isn't open yet).
+ */
+export function AppealSocket({ held, spent }: { held: boolean; spent: boolean }) {
+  if (spent) {
+    return (
+      <span
+        data-testid="appeal-socket-spent"
+        className="font-mono text-xs px-2 py-1 rounded border border-dashed border-red-900/60 text-red-900/70 italic"
+      >
+        appeal — spent
+      </span>
+    );
+  }
+  if (!held) return null;
+  return (
+    <span data-testid="appeal-socket-held" className="font-mono text-xs px-2 py-1 rounded border border-neutral-700 bg-neutral-900 text-neutral-200">
+      spend_appeal ×1
+    </span>
+  );
+}

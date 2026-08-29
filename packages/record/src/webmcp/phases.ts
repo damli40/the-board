@@ -33,6 +33,16 @@ export class PhaseMachine {
     return this.registry.isOpen(APPEAL_LIFETIME[side]);
   }
 
+  /**
+   * Task 8: the phase ribbon draws a permanently empty socket once an appeal
+   * is spent, distinct from "not open yet because we're not at VERDICT". A
+   * public reader over the existing private `spent` set — no change to how
+   * spending works, no new state.
+   */
+  appealSpent(side: Side): boolean {
+    return this.spent.has(side);
+  }
+
   private isSpent(lifetime: Lifetime): boolean {
     return (lifetime === 'appealA' && this.spent.has('A'))
         || (lifetime === 'appealB' && this.spent.has('B'));

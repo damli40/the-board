@@ -19,9 +19,51 @@ export async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
     .join('');
 }
 
+const DB_NAME = 'the-board-exhibits';
+const STORE_NAME = 'blobs';
+
+/**
+ * jsdom has never implemented IndexedDB (a documented, long-standing gap —
+ * `'indexedDB' in window` is false under jsdom 29, and Node has no global
+ * `indexedDB` either), so BOTH vitest projects this repo runs under (node
+ * and jsdom) lack it entirely. `typeof indexedDB` never throws even when the
+ * identifier doesn't exist, which is what makes this feature-detection safe
+ * to call from every environment.
+ */
+function hasIndexedDB(): boolean {
+  return typeof indexedDB !== 'undefined';
+}
+
+function openDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(STORE_NAME); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
 export class ExhibitStore {
   private items: Exhibit[] = [];
-  private blobs = new Map<string, ArrayBuffer>();
+  /**
+   * Task 8, ruling 4: the byte map was meant to move to IndexedDB outright.
+   * It moves for real wherever IndexedDB exists (every actual browser this
+   * project targets — WebMCP itself requires Chrome). Where it does not
+   * exist — both vitest projects, per the note on `hasIndexedDB` above —
+   * this in-memory Map is the ONLY storage, so the full suite stays green
+   * without either environment needing a fake or a polyfill. This is a
+   * deliberate feature-detected fallback, not an abandoned swap: `add` and
+   * `get` still write through to a real IndexedDB database whenever one is
+   * available, and `bytesOf` reads back from whichever store actually holds
+   * the bytes.
+   */
+  private memory = new Map<string, ArrayBuffer>();
+  private dbPromise: Promise<IDBDatabase> | undefined;
+
+  private db(): Promise<IDBDatabase> {
+    if (!this.dbPromise) this.dbPromise = openDb();
+    return this.dbPromise;
+  }
 
   async add(input: ExhibitInput): Promise<Exhibit> {
     const id = `E${this.items.length + 1}`;
@@ -52,7 +94,19 @@ export class ExhibitStore {
     };
 
     this.items.push(exhibit);
-    this.blobs.set(id, input.bytes);
+
+    if (hasIndexedDB()) {
+      const db = await this.db();
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(input.bytes, id);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    } else {
+      this.memory.set(id, input.bytes);
+    }
+
     return exhibit;
   }
 
@@ -60,8 +114,23 @@ export class ExhibitStore {
     return this.items.find((e) => e.id === id);
   }
 
-  bytesOf(id: string): ArrayBuffer | undefined {
-    return this.blobs.get(id);
+  /**
+   * Async because IndexedDB is inherently async (ruling 4's "bytesOf becomes
+   * async"). Callers that pre-date this swap should route through
+   * `Promise.resolve(store.bytesOf(id))` if they ever need to tolerate a
+   * hypothetical sync implementation again — none in this codebase do; every
+   * caller (ExhibitList) already awaits this.
+   */
+  async bytesOf(id: string): Promise<ArrayBuffer | undefined> {
+    if (hasIndexedDB()) {
+      const db = await this.db();
+      return new Promise((resolve, reject) => {
+        const req = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME).get(id);
+        req.onsuccess = () => resolve(req.result as ArrayBuffer | undefined);
+        req.onerror = () => reject(req.error);
+      });
+    }
+    return this.memory.get(id);
   }
 
   all(): Exhibit[] {

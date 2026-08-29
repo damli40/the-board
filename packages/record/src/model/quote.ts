@@ -14,8 +14,14 @@ export function normaliseForQuote(s: string): string {
   return s.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-/** The text the locator points at, or an error string describing why there is none. */
-function scopeText(exhibit: Exhibit, locator: Locator): { text: string } | { error: string } {
+/**
+ * The text the locator points at, or an error string describing why there is
+ * none. Exported (Task 8) so the citation trace UI can resolve the exact
+ * scoped slice a cited assessment quoted from, using the same locator
+ * semantics as the check itself — one definition, not a second copy that
+ * could drift.
+ */
+export function scopeText(exhibit: Exhibit, locator: Locator): { text: string } | { error: string } {
   if (locator.page !== undefined) {
     const pages = exhibit.pages;
     if (!pages || locator.page < 1 || locator.page > pages.length) {
