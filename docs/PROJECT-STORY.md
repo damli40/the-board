@@ -96,4 +96,6 @@ Model provenance is the annotation I would ask for.
 
 Beyond that: base64 spotlighting as the higher-cost upgrade Chrome recommends, an allowlist on the link capture, and running the same boundary against a third-party agent rather than only the panels I ship.
 
+Then the version with real parties in it. Match two people into a case by code, leave the process public to read, and restrict filing to the two in the room. The code decides which seat you get. The browser decides what that seat can do. Guessing the code gets you into the room, not into the other side's tools, because those are bound to a different origin. Running all four agents in one document was never the compromise version of this. It is the harder one: agents on separate machines are trivially separate, and showing it there would show nothing. The genuinely hard part is that a public record cannot recompute the manifest live the way the page does, so the ledger has to carry enough for a reader to re-derive it instead of trusting it. And someone has to say who is allowed to press confirm when the gallery is public.
+
 The process I was inside gave me silence. This gives you a picture. A hole you can show someone is worth more than a silence you cannot.

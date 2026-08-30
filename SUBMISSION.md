@@ -220,7 +220,14 @@ because they bound every other claim in this document:
   is the claim the whole architecture rests on, so nothing above should be read as a browser-confirmed
   result until that runbook is executed.
 - **`exposedTo` scopes origins, not people.** This is one browser, several origins, a co-present
-  session, never "two people, two browsers."
+  session, never "two people, two browsers." Running all four agents in one document is the harder
+  demonstration, not a shortcut: agents on separate machines are trivially separate, and proving it
+  there would prove nothing. A product version matches two parties into a case by code, with the
+  process public to read and filing restricted to the two people in the room. The code decides which
+  seat you get; the browser decides what that seat can do. Guessing the code gets you into the room,
+  not into the other party's tools, because those are bound to a different origin. The harder half is
+  that a public record cannot recompute the manifest live, so the ledger would have to carry enough
+  for a reader to re-derive it rather than take it on trust.
 - **There is no WebMCP primitive to declare which model is behind a tool.** Two board seats can be
   built to be independent; nothing in the spec lets one prove that independence to the page, or to a
   reader, today. If there is one annotation worth adding to the spec, this is it.
