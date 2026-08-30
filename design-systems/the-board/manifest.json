@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "od-design-system-project/v1",
+  "id": "the-board",
+  "name": "The Board",
+  "category": "product",
+  "description": "Terminal-dark design system for an agent-adjudication record. Four origin-scoped actors, a granted/withheld manifest, and refusals treated as output rather than error.",
+  "source": { "type": "local" },
+  "files": { "design": "DESIGN.md", "tokens": "tokens.css" }
+}

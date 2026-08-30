@@ -1,0 +1,82 @@
+/*
+ * The Board — design tokens.
+ *
+ * Values are MEASURED, not chosen: brand values sampled from the supplied
+ * logo (docs/brand/the-board-lockup.jpg), actor colours read as resolved by
+ * Tailwind v4 in Chrome 152 on 30 Aug 2026. Do not "tidy" them into
+ * approximations; they are what ships today.
+ */
+:root {
+  /* ---- Brand, from the logo ---- */
+  --tb-accent: #EEA33D;          /* the mark's amber */
+  --tb-ground: #191919;          /* the mark's ground */
+
+  /* ---- Surfaces ---- */
+  --tb-bg: #0a0a0a;              /* page ground (neutral-950) */
+  --tb-surface: #171717;         /* raised panel */
+  --tb-rule: #262626;            /* dividers, neutral-800 */
+
+  /* ---- Text ---- */
+  --tb-fg: #e5e5e5;              /* primary */
+  --tb-fg-muted: oklch(0.708 0 none);  /* column headings, counts */
+  --tb-fg-dim: #737373;          /* withheld tool names */
+
+  /* ---- State ----
+     `withheld` is NOT an error colour. It marks a capability deliberately not
+     granted, which is the product working. `refused` is the same family and
+     also not an error: a refusal is output. Anything that genuinely broke
+     needs a THIRD treatment, distinct from both. */
+  --tb-withheld: oklab(0.704 0.176821 0.072217 / 0.8);
+  --tb-withheld-rule: oklab(0.704 0.176821 0.072217 / 0.7);  /* strikethrough */
+
+  /* ---- The four actors ----
+     Four distinguishable identities is a requirement, not decoration: a viewer
+     must tell the frames apart at a glance. Note B's amber currently collides
+     with --tb-accent; resolve that in any repalette. */
+  --tb-actor-a: oklch(0.865 0.127 207.078);      /* Advocate A  */
+  --tb-actor-b: oklch(0.879 0.169 91.605);       /* Advocate B  */
+  --tb-actor-seat1: oklch(0.811 0.111 293.571);  /* Seat 1      */
+  --tb-actor-seat2: oklch(0.845 0.143 164.978);  /* Seat 2      */
+
+  --tb-actor-a-border: oklab(0.715 -0.116822 -0.0824726 / 0.5);
+  --tb-actor-b-border: oklab(0.769 0.0640531 0.176752 / 0.5);
+  --tb-actor-seat1-border: oklab(0.606 0.096545 -0.230606 / 0.5);
+  --tb-actor-seat2-border: oklab(0.696 -0.162114 0.0511766 / 0.5);
+
+  /* Header wash: same hue at 0.1 alpha. */
+  --tb-actor-wash-alpha: 0.1;
+
+  /* ---- Type ----
+     Mono is for IDENTIFIERS ONLY: tool names, origins, exhibit ids, hashes,
+     quoted evidence. Prose belongs in the sans. Everything is currently mono,
+     which is the single largest quality lift available. */
+  --tb-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --tb-font-sans: -apple-system, system-ui, "Helvetica Neue", sans-serif;
+
+  --tb-text-body: 15px;    /* target for prose; below 14px people lean in */
+  --tb-text-dense: 12px;   /* manifest tables, see the budget note below */
+  --tb-text-meta: 12px;    /* origins, counts, timestamps */
+  --tb-leading-body: 1.55;
+  --tb-leading-dense: 1.5;
+  --tb-measure: 70ch;      /* max line length for prose */
+
+  /* ---- Rhythm ----
+     The gap BETWEEN turns must be about double the gap INSIDE a turn. That
+     ratio carries most of a transcript's structure on its own. */
+  --tb-space-1: 4px;
+  --tb-space-2: 8px;
+  --tb-space-3: 12px;
+  --tb-space-4: 16px;
+  --tb-space-6: 24px;
+  --tb-space-8: 32px;
+  --tb-turn-gap: var(--tb-space-6);
+  --tb-turn-inner-gap: var(--tb-space-3);
+
+  /* ---- Layout budget (measured, do not re-derive) ----
+     The GRANTED table needs 180px; its column provides 157px. Four manifests
+     of two columns each, at 17-character monospace names, is ~15% over budget
+     at 1470px. Longest strings that must fit uncut:
+       record_assessment · return_with_note · extract_text (page lends) */
+  --tb-manifest-min-col: 180px;
+  --tb-bullet-gutter: 16px;   /* bullets hang, so a wrap indents under itself */
+}
