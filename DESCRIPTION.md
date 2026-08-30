@@ -228,12 +228,14 @@ is what an invisible process gives you, and a hole is something you can show som
 ## Technical shape
 
 ```
-theboard.app                    the record — docket, exhibits, phases, verdicts
-  ├─ <iframe allow="tools" src="a.theboard.app">        side A's advocate
-  ├─ <iframe allow="tools" src="b.theboard.app">        side B's advocate
-  ├─ <iframe allow="tools" src="seat1.theboard.app">    board seat 1
-  └─ <iframe allow="tools" src="seat2.theboard.app">    board seat 2
+https://theboard-record.netlify.app      the record — docket, exhibits, phases, verdicts
+  ├─ <iframe allow="tools" src="https://theboard-a.netlify.app">    side A's advocate
+  ├─ <iframe allow="tools" src="https://theboard-b.netlify.app">    side B's advocate
+  ├─ <iframe allow="tools" src="https://theboard-seat1.netlify.app"> board seat 1
+  └─ <iframe allow="tools" src="https://theboard-seat2.netlify.app"> board seat 2
 ```
+
+(Deployment targets; not yet live.)
 
 Five browser origins in one tab. Each board seat gets its own origin so that "seat 1 never opened
 that exhibit" is something the browser establishes rather than something the seat says about

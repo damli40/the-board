@@ -138,13 +138,15 @@ refusal and a read can be *seen*. Build these five; they are the demo.
 Two columns per actor, rendered from **one** registry call so they cannot disagree with reality:
 
 ```
-ADVOCATE B            ⌁ frame: b.theboard.app
-GRANTED               NOT GRANTED
-● file_exhibit        ○ f̶i̶l̶e̶_̶e̶x̶h̶i̶b̶i̶t̶(̶a̶s̶:̶ ̶A̶)̶
-● file_fact           ○ o̶p̶e̶n̶_̶e̶x̶h̶i̶b̶i̶t̶
-● concede             ○ r̶e̶c̶o̶r̶d̶_̶a̶s̶s̶e̶s̶s̶m̶e̶n̶t̶
-● dispute             ○ c̶o̶n̶f̶i̶r̶m̶
+ADVOCATE B          ⌁ frame: https://theboard-b.netlify.app
+GRANTED             NOT GRANTED
+● file_exhibit      ○ f̶i̶l̶e̶_̶e̶x̶h̶i̶b̶i̶t̶(̶a̶s̶:̶ ̶A̶)̶
+● file_fact         ○ o̶p̶e̶n̶_̶e̶x̶h̶i̶b̶i̶t̶
+● concede           ○ r̶e̶c̶o̶r̶d̶_̶a̶s̶s̶e̶s̶s̶m̶e̶n̶t̶
+● dispute           ○ c̶o̶n̶f̶i̶r̶m̶
 ```
+
+(Deployment target; not yet live.)
 The right column is the invention. Every tool inspector shows what is registered; nothing shows
 what was withheld. **Name the withheld tools in full** — a greyed placeholder proves nothing, the
 specific name is what makes the boundary legible.

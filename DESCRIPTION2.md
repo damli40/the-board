@@ -115,12 +115,14 @@ finding. It never quietly passes an unverifiable claim as a verified one.
 Every tool inspector shows what a page *has* registered. This one also renders what it **has not**:
 
 ```
-BOARD SEAT 2                    frame: seat2.theboard.app
-GRANTED                         NOT GRANTED
-● open_exhibit                  ○ f̶i̶l̶e̶_̶e̶x̶h̶i̶b̶i̶t̶
-● extract_text                  ○ d̶i̶s̶p̶u̶t̶e̶
-● record_assessment             ○ c̶o̶n̶f̶i̶r̶m̶
+BOARD SEAT 2                  frame: https://theboard-seat2.netlify.app
+GRANTED                       NOT GRANTED
+● open_exhibit                ○ f̶i̶l̶e̶_̶e̶x̶h̶i̶b̶i̶t̶
+● extract_text                ○ d̶i̶s̶p̶u̶t̶e̶
+● record_assessment           ○ c̶o̶n̶f̶i̶r̶m̶
 ```
+
+(Deployment target; not yet live.)
 
 Both halves are drawn from the same registry, so the right column cannot drift from the truth.
 
