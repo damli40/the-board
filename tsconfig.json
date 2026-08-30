@@ -23,6 +23,6 @@
     "vitest.setup.ts",
     "vitest.setup.node.ts",
     "scripts",
-    "netlify/functions"
+    "packages/*/netlify/functions"
   ]
 }

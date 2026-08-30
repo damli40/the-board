@@ -3,9 +3,11 @@ export type Seat = 'seat1' | 'seat2';
 export type Actor = Side | Seat;
 export type Phase = 'FILING' | 'REVIEW' | 'VERDICT' | 'CONFIRMED';
 
-// The five real origins (dev: localhost ports; prod: theboard.app subdomains)
-// live in exactly one place — packages/record/src/config/origins.ts — so the
-// production swap happens there only. This re-export lets every later task
+// The five real origins (dev: localhost ports; prod: the five *.netlify.app
+// sites, see docs/evidence/deploy.md) live in exactly one place,
+// packages/record/src/config/origins.ts, which resolves dev vs prod at
+// runtime, so no file ever needs its own production swap. This re-export
+// lets every later task
 // import ORIGIN / PARENT_ORIGIN from './types' (or '../model/types') without
 // this file duplicating the strings. origins.ts imports `Actor` (above) back
 // as a type-only import to key ORIGIN, so the actor union itself also has

@@ -1,16 +1,31 @@
-# packages/record/netlify.toml — site: the parent/record origin
+# packages/record/netlify.toml, site: theboard-record.netlify.app (parent, owns
+# the record and the tool registry)
 #
-# DEV VALUES: the Permissions-Policy origins below are the five localhost dev
-# ports from packages/record/src/config/origins.ts, not the real theboard.app
-# subdomains. Swap them for the real *.theboard.app origins — in this file and
-# in origins.ts — before the first production deploy.
+# PRODUCTION VALUES: the four origins in Permissions-Policy below are the real
+# panel sites (PROD_ORIGINS in packages/record/src/config/origins.ts), not the
+# localhost dev ports. netlify-headers.test.ts fails on purpose if this file
+# drifts from PROD_ORIGINS, see that test's own header comment.
 
 [build]
   command = "npm run build"
   publish = "dist"
 
+# This site's build base is packages/record (see docs/evidence/deploy.md), so
+# every path below is written relative to that base, not the repo root.
+#
+# The functions directory used to be written as "../../netlify/functions",
+# pointing at a shared functions folder at the repo root. `netlify build --dry`
+# rejects that outright: "Configuration property functionsDirectory ... must
+# be inside the repository root directory" (verified against the installed
+# netlify-cli, see docs/evidence/deploy.md). Netlify treats the folder holding
+# netlify.toml as that boundary, so no relative path may climb above it, at
+# any depth. The fix is to keep the function this site actually needs inside
+# this folder's own tree: packages/record/netlify/functions/capture.ts.
+[functions]
+  directory = "netlify/functions"
+
 [[headers]]
   for = "/*"
   [headers.values]
     Origin-Agent-Cluster = "?1"
-    Permissions-Policy = 'tools=(self "http://localhost:8081" "http://localhost:8082" "http://localhost:8083" "http://localhost:8084")'
+    Permissions-Policy = 'tools=(self "https://theboard-a.netlify.app" "https://theboard-b.netlify.app" "https://theboard-seat1.netlify.app" "https://theboard-seat2.netlify.app")'

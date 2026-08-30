@@ -76,11 +76,33 @@ and then naming the one gap reads as having gone further.
 | Restrict cross-origin interactions | `getTools({ fromOrigins })` on the calling side, `exposedTo` at registration on the owning side: a panel discovers only what was granted to its own origin |
 | Confirm consequential actions with a human | `confirm` is not a tool. A named human presses it directly, outside every agent loop, in any phase |
 
-## Quickstart: five local origins
+## Quickstart
 
 This build runs as five separate browser origins in one tab (one parent page plus four panels),
-because the whole point is that capability is scoped per origin. Locally that means five ports, not
-five domains:
+because the whole point is that capability is scoped per origin. There are two ways to see that
+running: the live deployment, or five ports on your own machine.
+
+### For judges: the live deployment
+
+| origin | role |
+|---|---|
+| [`theboard-record.netlify.app`](https://theboard-record.netlify.app) | the docket, the tool registry, the phase machine |
+| [`theboard-a.netlify.app`](https://theboard-a.netlify.app) | Advocate A |
+| [`theboard-b.netlify.app`](https://theboard-b.netlify.app) | Advocate B |
+| [`theboard-seat1.netlify.app`](https://theboard-seat1.netlify.app) | Board Seat 1 |
+| [`theboard-seat2.netlify.app`](https://theboard-seat2.netlify.app) | Board Seat 2 |
+
+In Chrome 149 or later, turn on `chrome://flags/#enable-webmcp-testing` and relaunch the browser
+(that is the flag from the callout above; no origin trial token is required). Then open
+`https://theboard-record.netlify.app`; the parent page loads the four panels above as cross-origin
+iframes on its own. As of this commit these five sites have not been deployed yet: deploying them
+is the last step before submission, and the exact commands for doing that live in
+[`docs/evidence/deploy.md`](docs/evidence/deploy.md). If the live link in the submission does not
+load, that runbook is also how to check what went wrong.
+
+### For anyone cloning this: five local origins
+
+Locally, the same five origins are five ports instead of five domains:
 
 | origin | port | role |
 |---|---|---|
@@ -97,15 +119,18 @@ npm run dev:origins   # starts all five Vite dev servers in one process
 
 Then, in Chrome 149+, with the flag from the callout above enabled, open `http://localhost:8080`.
 
-Every origin string in this repo is imported from one file:
-[`packages/record/src/config/origins.ts`](packages/record/src/config/origins.ts). These are dev
-placeholders standing in for five real subdomains this project would deploy to in production. Moving
-to real domains means editing that one file; the two `netlify.toml` header files that would serve
-production also need their `Permissions-Policy` values to match, and a test
-(`netlify-headers.test.ts`) fails on purpose if they drift out of sync with `origins.ts`, so a stale
-production header cannot pass silently. **This repository has not been published and nothing here
-has been deployed.** The five origins above are local dev ports, not live hosts; do not treat any
-`theboard.app` subdomain as reachable today.
+### Where the origins live
+
+Every origin string in this repo, dev and production alike, is exported from one file:
+[`packages/record/src/config/origins.ts`](packages/record/src/config/origins.ts). It defines both
+sets explicitly (`DEV_ORIGINS`/`DEV_PARENT_ORIGIN` are the five localhost ports above,
+`PROD_ORIGINS`/`PROD_PARENT_ORIGIN` are the five Netlify sites above) and resolves which one the
+rest of the code sees at runtime: a production browser build gets the Netlify origins, everything
+else (the dev server, the test suite) gets localhost. No other file makes that choice. The two
+`netlify.toml` files that serve the production headers carry their own copy of the Netlify origins,
+because a `.toml` file can't import TypeScript; a test (`netlify-headers.test.ts`) fails on purpose
+if either one drifts out of sync with `origins.ts`, so a stale production header cannot pass
+silently.
 
 ## Architecture
 

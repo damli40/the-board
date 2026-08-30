@@ -1,17 +1,37 @@
-# packages/panel/netlify.toml — deployed four times: A, B, seat1, seat2
+# packages/panel/netlify.toml, deployed four times, unchanged: A, B, seat1,
+# seat2 (theboard-a / theboard-b / theboard-seat1 / theboard-seat2.netlify.app)
 #
-# DEV VALUES: the Permissions-Policy origin below is the parent's localhost
-# dev port (packages/record/src/config/origins.ts PARENT_ORIGIN), not the real
-# theboard.app origin. Swap it for the real parent subdomain before the first
-# production deploy. This one file is deployed unchanged to all four panel
-# sites — the policy only needs to name the parent, not the sibling panels.
+# PRODUCTION VALUES: the origin in Permissions-Policy below is the real parent
+# site (PROD_PARENT_ORIGIN in packages/record/src/config/origins.ts), not the
+# parent's localhost dev port. netlify-headers.test.ts fails on purpose if
+# this file drifts from PROD_PARENT_ORIGIN, see that test's own header
+# comment. This one file is deployed unchanged to all four panel sites; the
+# policy only needs to name the parent, not the sibling panels.
 
 [build]
   command = "npm run build"
   publish = "dist"
 
+# This site's build base is packages/panel (see docs/evidence/deploy.md), so
+# every path below is written relative to that base, not the repo root.
+#
+# The functions directory used to be written as "../../netlify/functions",
+# pointing at a shared functions folder at the repo root. `netlify build --dry`
+# rejects that outright: "Configuration property functionsDirectory ... must
+# be inside the repository root directory" (verified against the installed
+# netlify-cli, see docs/evidence/deploy.md). Netlify treats the folder holding
+# netlify.toml as that boundary, so no relative path may climb above it, at
+# any depth. The fix is to keep the function every panel site needs inside
+# this folder's own tree: packages/panel/netlify/functions/model-proxy.ts.
+# That is what makes
+# https://theboard-<site>.netlify.app/.netlify/functions/model-proxy resolve,
+# on all four panel sites alike, since this one file deploys unchanged to all
+# four.
+[functions]
+  directory = "netlify/functions"
+
 [[headers]]
   for = "/*"
   [headers.values]
     Origin-Agent-Cluster = "?1"
-    Permissions-Policy = 'tools=(self "http://localhost:8080")'
+    Permissions-Policy = 'tools=(self "https://theboard-record.netlify.app")'

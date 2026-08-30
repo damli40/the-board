@@ -6,11 +6,17 @@
 // Permissions-Policy — a NotAllowedError on registerTool() that no other test
 // would notice, because origins.test.ts only checks origins.ts against
 // itself.
+//
+// Both netlify.toml files are production-only artefacts: they are read only
+// by Netlify's build, never by the dev server or vitest, so this compares
+// them against PROD_ORIGINS / PROD_PARENT_ORIGIN specifically, not against
+// the resolved ORIGIN / PARENT_ORIGIN (which resolve to the dev origins in
+// this very test run; see origins.ts's own comment on why).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { PARENT_ORIGIN, ORIGIN } from './origins';
+import { PROD_PARENT_ORIGIN, PROD_ORIGINS } from './origins';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 // here = packages/record/src/config
@@ -34,12 +40,12 @@ describe('netlify.toml headers stay in sync with origins.ts', () => {
 
   it('packages/record/netlify.toml Permissions-Policy names exactly the four panel origins', () => {
     const value = headerValue(recordToml, 'Permissions-Policy');
-    for (const origin of Object.values(ORIGIN)) {
+    for (const origin of Object.values(PROD_ORIGINS)) {
       expect(value).toContain(`"${origin}"`);
     }
     // Also catches a stale extra origin left behind after a rename/removal.
     const quoted = [...value.matchAll(/"(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
-    expect(quoted.sort()).toEqual(Object.values(ORIGIN).sort());
+    expect(quoted.sort()).toEqual(Object.values(PROD_ORIGINS).sort());
   });
 
   it('packages/panel/netlify.toml sets Origin-Agent-Cluster to ?1', () => {
@@ -49,6 +55,6 @@ describe('netlify.toml headers stay in sync with origins.ts', () => {
   it('packages/panel/netlify.toml Permissions-Policy names exactly the parent origin', () => {
     const value = headerValue(panelToml, 'Permissions-Policy');
     const quoted = [...value.matchAll(/"(https?:\/\/[^"]+)"/g)].map((m) => m[1]);
-    expect(quoted).toEqual([PARENT_ORIGIN]);
+    expect(quoted).toEqual([PROD_PARENT_ORIGIN]);
   });
 });
