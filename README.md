@@ -223,9 +223,11 @@ as plainly as the claim.
   extraction logic against a fake loader on purpose, so they stay fast and deterministic. Whether the
   real `pdfjs-dist` package actually parses a real file through this project's own Vite/worker wiring
   was verified once, outside this repo's test suite, in a standalone Node script against the exact
-  bytes this project ships (see `task-9-report.md` for that transcript). The same check against this
-  project's own browser-side wiring is prescribed step by step in `hand-run.md` and has not yet been
-  performed.
+  bytes this project ships; the script and its output are both in
+  [`docs/evidence/pdfjs-verification.md`](docs/evidence/pdfjs-verification.md), not kept elsewhere.
+  That file proves the bytes and the package; it does not prove the browser path. The same check
+  against this project's own browser-side wiring is prescribed step by step in
+  [`docs/evidence/hand-run.md`](docs/evidence/hand-run.md) and has not yet been performed.
 - **The link-capture function and the model proxy are demo-shaped, not production-shaped.**
   [`packages/record/netlify/functions/capture.ts`](packages/record/netlify/functions/capture.ts)
   fetches any user-supplied `https` URL with no allowlist: a server-side request forgery is possible

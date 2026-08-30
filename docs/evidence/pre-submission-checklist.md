@@ -83,11 +83,15 @@ not the literal command. Also run it against the video script and the Devpost fo
 exist, not just the files in this repository. A public artifact cannot be un-published: if this
 command finds anything, stop and fix it before the repo goes public, not after.
 
-This exact sweep was already run once, by hand, against every file this task touched (`README.md`,
-`SUBMISSION.md`, `DESCRIPTION.md`, `DESCRIPTION2.md`, `docs/`, `packages/`, `docs/STORYBOARD.md`) as
-part of writing these submission artefacts, and came back clean; see `task-10-report.md` for the
-transcript. Re-run it yourself before publishing regardless, since anything added after this task
-(a video script, the Devpost form itself) has not been swept.
+A version of this sweep (dollar amounts, organisation/sector/event keywords, proper nouns, third-party
+URLs, run by hand against `README.md`, `SUBMISSION.md`, `DESCRIPTION.md`, `DESCRIPTION2.md`, `docs/`
+and `packages/`) came back clean while writing these submission artefacts, with one exception: two
+dollar-amount hits in `docs/evidence/real-world-cases.md`, both citing already-public third-party
+incidents unrelated to the personal dispute this rule protects, left as-is. That result lives only in
+this project's internal build log, not in the published repository, so it is summarised here rather
+than pointed at. Re-run the literal command above yourself before publishing regardless, since
+anything added since (a video script, the Devpost form itself) has not been swept, and a summary of a
+past run is not a substitute for running it again on the current state of the repo.
 
 ## 5. Secrets sweep on the built bundle
 

@@ -271,9 +271,9 @@ via `import.meta.url`, `pdfjs.getDocument`), actually works in a real browser ta
    day four of the term, within the agreed deadline."` — no console error about the pdf.js worker
    failing to load, no `UnknownErrorException`. This specific PDF was already verified, outside this
    repo's test suite, against the real `pdfjs-dist` package in a plain Node script (see
-   `task-9-report.md` for that transcript) — this step is re-confirming the SAME bytes work through
-   THIS project's own browser-side wiring (worker path, Vite bundling), not re-proving pdf.js parses
-   PDFs in general.
+   [`docs/evidence/pdfjs-verification.md`](pdfjs-verification.md) for the script and its output) —
+   this step is re-confirming the SAME bytes work through THIS project's own browser-side wiring
+   (worker path, Vite bundling), not re-proving pdf.js parses PDFs in general.
 3. **FAIL — the documented fallback:** if the worker fails to load, or extraction throws, or the
    returned text is wrong: **do not debug into the deadline.** Per Task 5's own fallback (CLAUDE.md,
    Task 9 Step 4 brief), stamp every citation against `E1` `human-check` — exactly the same treatment
