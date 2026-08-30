@@ -335,7 +335,7 @@ counterparty to defend against.
 | Gates the tool surface, not the credential | Anything with a terminal, an API key or a second path routes around it | Say so in the write-up. The widely reported case of a coding agent deleting a production database proves it: that deletion went through a shell, not a page tool |
 | Judges read it as authz + audit log | Rule 3 and Creativity both drop | Lead the write-up with capability-absence, not permission-denial. The agent saying "I have no tool for that" is the distinction made concrete |
 | "Two agents haggling" impression | The original Board's fatal flaw returns | The agents never negotiate. They act; the record refuses. Keep dialogue out of the demo |
-| Both agents are the same model with two prompts | "Each brings their own agent" is a claim, not a fact | Two providers, shown on screen. Borrowed directly from Quorum's seat-independence rule |
+| Both agents are the same model with two prompts | "Each brings their own agent" is a claim, not a fact | Two different models, one vendor, shown on screen. Borrowed directly from Quorum's seat-independence rule |
 | Live dispute becomes public | Forecloses an outstanding request; permanent after Sep 2 | **Name nothing.** §3's naming rule is binding on every artefact |
 | Field growing: 586 → 727 in one working day | Odds decay daily | Ship early |
 

@@ -488,7 +488,7 @@ Triage gate **Aug 30 evening**. If Tasks 0–4 are not green, these fire in orde
 | `toolchange` may not reach a built-in agent mid-task | **Unverified.** Spike is Task 0 | The panels are in-page agents whose refresh we control. Changes what the video *claims*, not what it *shows* |
 | `pdf.js` bundle or worker config fights Vite | Medium | Half a day budgeted. Fallback: PDF citations recorded with locator, marked "quote not machine-checked" in plain sight |
 | Four origins × header config | Low, but eats an afternoon if found late | Verified on day 1, Task 1 |
-| Two seats = two provider calls per verdict | Low | Key proxy already planned; pre-flight providers the day before filming |
+| Two seats = two provider calls per verdict | Low | Key proxy already planned; pre-flight the model proxy the day before filming |
 | **"AI arbitration" is a crowded hackathon genre** | **High** | Never lead with "AI judge." Lead with *bring your own advocate* and *the tool is not in its list* |
 | Innovation theater — slick UI over a thin repo | Named by a Databricks judge as heavily penalised | The 20 seconds of code in the storyboard is not optional |
 | No code exists yet and the spike is unrun | **The real one** | Spec tonight, spike + Task 1 tomorrow, hard scope freeze after |

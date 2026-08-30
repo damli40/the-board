@@ -3313,10 +3313,11 @@ If the spike found that no third-party client refreshes mid-task, the line stays
 from both hands"* over the in-page panels and **claims nothing about an external agent.** Check this
 before recording, not after.
 
-- [ ] **Step 2: Pre-flight both providers the day before**
+- [ ] **Step 2: Pre-flight the model proxy the day before**
 
-Two seats means two provider calls per verdict. Confirm both proxies answer, and confirm neither
-account is rate-limited or out of quota. A dead provider on camera is a lost submission.
+Two seats means two provider calls per verdict, both against the same account. Confirm both proxies
+answer, and confirm that one account is not rate-limited or out of quota. A dead provider on camera
+is a lost submission.
 
 - [ ] **Step 3: Record clean screen passes, then lay voice over**
 

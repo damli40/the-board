@@ -312,8 +312,8 @@ Everything below needs a real Netlify site, which this task was explicitly not a
    as its own `--help` text states, without ever running `netlify link` first. This is documented
    CLI behaviour but was not exercised, since exercising it means deploying.
 5. **The five-host curl loop in step 5**, which needs the sites to exist and have finished a build.
-6. **The actual model provider calls in production** (step 4's "pre-flight both providers" advice
-   from `docs/STORYBOARD.md`), including whether the two providers' free-tier quotas hold up on
-   camera.
+6. **The actual model provider calls in production** (step 4's "pre-flight the model proxy" advice
+   from `docs/STORYBOARD.md`), including whether that one account's free-tier quota, shared by both
+   seats, holds up on camera.
 7. **DNS/TLS behaviour on the `*.netlify.app` subdomains**, though this is Netlify's own managed
    domain and has no project-specific risk beyond the above.

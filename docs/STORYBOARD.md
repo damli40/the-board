@@ -469,7 +469,7 @@ Standing rule: every storyboard carries one. Nothing goes on camera without a ro
 - **Crop every capture.** A full-desktop recording makes the tool-list change unreadable, and that
   change is the tie-break criterion.
 - **Rehearse 0:50–1:19 and 1:33–2:21 until each is one take.** The first carries the tie-break argument; the second carries both hero beats.
-- **Pre-flight both providers the day before.** A mid-take rate limit kills the split beat, which
+- **Pre-flight the model proxy the day before.** A mid-take rate limit kills the split beat, which
   needs two seats to actually return.
 - **Seed the case before filming.** The exhibits, the injection payload and Seat 1's blind spot are
   set dressing — deterministic, never improvised on camera.

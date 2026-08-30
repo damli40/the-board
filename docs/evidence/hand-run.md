@@ -33,6 +33,14 @@ to prove `file_exhibit` itself works as a real tool call, not just as fixture-lo
    says "type into a panel" has a fallback: open that origin's DevTools console and call
    `document.modelContext.getTools()` / `.executeTool(tool, json)` directly — slower, but has zero
    dependency on a model responding correctly.
+4b. **Check the first real call's `stop_reason`.** Claude Opus 5 (the default `MODEL_ID`) runs
+   extended thinking adaptively by default, and its thinking tokens count against the same
+   `DEFAULT_MAX_TOKENS` (4096, in `packages/panel/src/proxy/anthropic.ts`) budgeted for visible
+   output, so a turn can come back with `stop_reason: "max_tokens"` and no tool call at all. That
+   already fails visibly rather than silently, but nobody has pre-flighted this exact combination.
+   If you see it, raise `DEFAULT_MAX_TOKENS`, then re-check that a full turn still completes inside
+   the Netlify function's 10-second timeout (`docs/evidence/deploy.md`, step 7) before recording
+   anything.
 
 ---
 
