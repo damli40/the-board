@@ -11,7 +11,8 @@
 > **v4 — 2026-08-26.** Rebuilt for the adjudication design
 > (`superpowers/specs/2026-08-26-the-board-adjudication-design.md`). The craft corrections from
 > v2/v3 survive unchanged and are kept below; the shot list is entirely new. One arithmetic error in
-> the old word budget is corrected. v3 is archived as `STORYBOARD-v3-versioned-rules.md`.
+> the old word budget is corrected. v3 argued for the abandoned versioned-rules concept and is
+> kept only as a local working file, untracked and deliberately absent from the published repo.
 
 ---
 

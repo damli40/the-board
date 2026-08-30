@@ -19,7 +19,8 @@ phase, holds a tool that can put a verdict into force.
 **Spec:** `docs/superpowers/specs/2026-08-26-the-board-adjudication-design.md` (**v3** — two layers)
 **Rules file (read first):** `CLAUDE.md`
 **Storyboard (drives Task 11 acceptance):** `docs/STORYBOARD.md`
-**Superseded plan (do not execute):** `docs/superpowers/plans/2026-08-26-the-board-v1-versioned-rules.md`
+**Superseded plan (do not execute):** the v1 versioned-rules plan, untracked as of the final fix
+pass and absent from the published repo, so a fresh clone will not have it.
 
 ## Global Constraints
 

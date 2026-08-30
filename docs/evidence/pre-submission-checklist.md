@@ -85,13 +85,15 @@ command finds anything, stop and fix it before the repo goes public, not after.
 
 A version of this sweep (dollar amounts, organisation/sector/event keywords, proper nouns, third-party
 URLs, run by hand against `README.md`, `SUBMISSION.md`, `DESCRIPTION.md`, `DESCRIPTION2.md`, `docs/`
-and `packages/`) came back clean while writing these submission artefacts, with one exception: two
-dollar-amount hits in `docs/evidence/real-world-cases.md`, both citing already-public third-party
-incidents unrelated to the personal dispute this rule protects, left as-is. That result lives only in
-this project's internal build log, not in the published repository, so it is summarised here rather
-than pointed at. Re-run the literal command above yourself before publishing regardless, since
-anything added since (a video script, the Devpost form itself) has not been swept, and a summary of a
-past run is not a substitute for running it again on the current state of the repo.
+and `packages/`) came back clean while writing these submission artefacts. The one file it flagged,
+a working note that named resolvable organisations and dollar figures from already-public third-party
+incidents, has since been untracked and is no longer part of the published repository, so the sweep
+is now clean on the published tree with no exception to carry. Nothing personal was ever exposed by
+it; it was removed because it breached the naming rule as written, and because it argued for a design
+concept this project abandoned. Re-run the literal command above yourself before publishing
+regardless, since anything added since (a video script, the Devpost form itself) has not been swept,
+and a summary of a past run is not a substitute for running it again on the current state of the
+repo.
 
 ## 5. Secrets sweep on the built bundle
 

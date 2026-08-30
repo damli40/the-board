@@ -6,3 +6,15 @@ dist/
 .netlify/
 coverage/
 *.local
+
+# Local working files, deliberately not published (final fix pass).
+# `real-world-cases.md` names resolvable organisations and dollar figures. It
+# cannot deanonymise anything personal, so no irreversible harm was created,
+# but it breaches the naming rule in CLAUDE.md §0 as written. The other three
+# argue for the versioned-rules concept this project abandoned, so a reader of
+# the public repo would be following a design that was never built.
+# `git rm --cached`-ed, so they survive locally and leave the published repo.
+docs/evidence/real-world-cases.md
+docs/STORYBOARD-v3-versioned-rules.md
+docs/superpowers/specs/2026-08-26-quorum-design.md
+docs/superpowers/plans/2026-08-26-the-board-v1-versioned-rules.md

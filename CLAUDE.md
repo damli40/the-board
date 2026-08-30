@@ -13,8 +13,9 @@ source, rather than listed separately as an erratum.
 **Video + UI spec:** `docs/STORYBOARD.md` — holds the **UI spec for Task 8** (how capability and
 absence get onto the screen) and **Demo practice** (sourced demo-craft reference). Read both before
 building any UI.
-⛔ `docs/superpowers/plans/2026-08-26-the-board-v1-versioned-rules.md` builds the abandoned
-concept. Do not execute it.
+⛔ The v1 plan and the quorum spec build the abandoned versioned-rules concept. Do not execute
+them. Both are untracked as of the final fix pass and are absent from the published repo; they
+survive only as local working files, so a fresh clone will not have them at all.
 
 ---
 
