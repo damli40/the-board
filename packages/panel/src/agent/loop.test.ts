@@ -220,4 +220,72 @@ describe('runAgentTurn', () => {
       expect(toolMessage.content).toContain('The clause is on page 4.');
     });
   });
+
+  /**
+   * Chrome delivers tools under their per-actor registered name
+   * (`seat1__open_exhibit`), because WebMCP names are unique per document. The
+   * model's vocabulary is still the bare name — that is what every description
+   * and transcript line says. Every other fixture in this file predates that
+   * and uses bare names, a shape the browser no longer produces.
+   */
+  describe('per-actor tool names, as Chrome now delivers them', () => {
+    const holding = (name: string) =>
+      fakeTool({ name, annotations: { readOnlyHint: false, untrustedContentHint: true } });
+
+    function panelHolding(tool: ReturnType<typeof holding>, result: unknown = 'opened E1') {
+      const executeTool = vi.fn().mockResolvedValue(result);
+      (globalThis as { document?: unknown }).document = {
+        modelContext: { getTools: vi.fn().mockResolvedValue([tool]), executeTool },
+      };
+      return executeTool;
+    }
+
+    it('resolves a BARE call against the prefixed tool this panel holds', async () => {
+      const tool = holding('seat1__open_exhibit');
+      const executeTool = panelHolding(tool);
+      vi.stubGlobal('fetch', fetchSequence(
+        { calls: [{ name: 'open_exhibit', arguments: { exhibitId: 'E1' } }] }, { message: 'done' }));
+
+      const out = await runAgentTurn('open E1');
+      expect(executeTool).toHaveBeenCalledWith(tool, JSON.stringify({ exhibitId: 'E1' }));
+      // The regression this guards: printing NOT GRANTED for a granted tool,
+      // and telling the model so, which stops it using what it holds.
+      expect(out).not.toContain('NOT GRANTED');
+      expect(out).toContain('opened E1');
+    });
+
+    it('still resolves an EXACT prefixed call', async () => {
+      const tool = holding('seat1__open_exhibit');
+      const executeTool = panelHolding(tool);
+      vi.stubGlobal('fetch', fetchSequence(
+        { calls: [{ name: 'seat1__open_exhibit', arguments: { exhibitId: 'E1' } }] }, { message: 'done' }));
+
+      await runAgentTurn('open E1');
+      expect(executeTool).toHaveBeenCalledWith(tool, JSON.stringify({ exhibitId: 'E1' }));
+    });
+
+    it("refuses a call naming ANOTHER actor's tool rather than quietly running its own", async () => {
+      const tool = holding('seat1__open_exhibit');
+      const executeTool = panelHolding(tool);
+      vi.stubGlobal('fetch', fetchSequence(
+        { calls: [{ name: 'seat2__open_exhibit', arguments: { exhibitId: 'E1' } }] }, { message: 'done' }));
+
+      const out = await runAgentTurn('open E1 as seat 2');
+      expect(executeTool).not.toHaveBeenCalled();
+      // Named as asked for, not stripped to `open_exhibit` — which IS granted,
+      // and would make this line false.
+      expect(out).toContain('NOT GRANTED: seat2__open_exhibit');
+    });
+
+    it('still reports NOT GRANTED for a page-owned control no actor ever holds', async () => {
+      const tool = holding('seat1__open_exhibit');
+      panelHolding(tool);
+      vi.stubGlobal('fetch', fetchSequence(
+        { calls: [{ name: 'confirm', arguments: {} }] }, { message: 'done' }));
+
+      const out = await runAgentTurn('confirm the verdict');
+      expect(out).toContain('NOT GRANTED: confirm');
+    });
+  });
+
 });

@@ -152,11 +152,41 @@ export async function runAgentTurn(goal: string): Promise<string> {
     }
 
     for (const call of plan.calls) {
-      const tool = tools.find((t) => t.name === call.name);
+      // Resolve by capability, not by registration key. The model's vocabulary
+      // is the BARE name — every description and transcript line uses it — so
+      // a call for `open_exhibit` from a panel holding `seat1__open_exhibit`
+      // used to miss and print `NOT GRANTED: open_exhibit` for a tool that IS
+      // granted: the one lie this project must never tell, and it went into
+      // `messages` too, so the model stopped reaching for a capability it had.
+      // Safe by construction: `getTools({fromOrigins})` returns only tools
+      // exposed to THIS origin, so a bare name resolves to at most one live
+      // tool, all of them this actor's. The catalogue guard in registry.test.ts
+      // is what keeps that one-to-one true.
+      // Two ways a call resolves, and one that must not.
+      //
+      // 1. An exact match on the registered name.
+      // 2. A BARE name matching a held capability. This is the common case:
+      //    the model's vocabulary is the bare name, because every description
+      //    and transcript line uses it. Before this, a call for `open_exhibit`
+      //    from a panel holding `seat1__open_exhibit` missed and printed
+      //    `NOT GRANTED: open_exhibit` for a tool that IS granted — the one lie
+      //    this project must never tell — and fed it back to the model, which
+      //    then stopped reaching for a capability it had.
+      // 3. A name carrying ANOTHER actor's prefix does NOT resolve. It could
+      //    safely run this panel's own copy, since `getTools({fromOrigins})`
+      //    returns only tools exposed to this origin and the actor is fixed at
+      //    registration. But a model asking for seat2's tool is reaching for a
+      //    capability it was not handed, and quietly substituting our own is
+      //    the substitution this whole product argues against. Refuse, and say
+      //    the name it actually asked for.
+      const unprefixed = bareToolName(call.name) === call.name;
+      const tool =
+        tools.find((t) => t.name === call.name) ??
+        (unprefixed ? tools.find((t) => bareToolName(t.name) === call.name) : undefined);
       if (!tool) {
         // Bare name on screen. The panel shows the capability, not the
         // per-actor registration key it was refused under.
-        const line = `NOT GRANTED: ${bareToolName(call.name)}`;
+        const line = `NOT GRANTED: ${call.name}`;
         transcript.push(line);
         messages.push({ role: 'tool', content: line });
         continue;

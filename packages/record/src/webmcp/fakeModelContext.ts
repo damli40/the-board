@@ -24,6 +24,16 @@ export class FakeModelContext {
     // 2026), so the check is against live tools only. Without this the double
     // was MORE PERMISSIVE than the browser, and 253 tests passed over a design
     // that left Advocate B and Seat 2 holding no tools at all.
+    // Chrome rejects registration against an already-aborted signal
+    // (CLAUDE.md sec. 1). The double used to RESOLVE, and because
+    // addEventListener('abort') never fires on an already-aborted signal the
+    // tool then stayed live forever — visible to its origin, impossible to
+    // withdraw, and holding its name against every later registration. Same
+    // "double is more permissive than the browser" class as the duplicate-name
+    // gap; this closes the other half.
+    if (opts.signal.aborted) {
+      throw new DOMException('signal aborted', 'InvalidStateError');
+    }
     if (this.tools.some((t) => t.live && t.name === def.name)) {
       throw new DOMException('Duplicate tool name', 'InvalidStateError');
     }

@@ -55,6 +55,10 @@ export class ToolRegistry {
 
     for (const spec of TOOLS.filter((t) => t.lifetime === lifetime)) {
       for (const actor of spec.actors) {
+        // `close()` can land inside this loop's await window: `registerTool`
+        // is real browser IPC, not a microtask. Registering against a signal
+        // that is already aborted is a rejection in Chrome, so stop.
+        if (ac.signal.aborted) break;
         const origin = ORIGIN[actor];
         const body = this.impl[spec.name] ?? (async () => { throw new Error(`${spec.name} not implemented`); });
         try {
@@ -81,7 +85,17 @@ export class ToolRegistry {
           });
         }
       }
+      if (ac.signal.aborted) break;
     }
+
+    // If this lifetime was closed — or closed and re-opened — while we were
+    // awaiting, `granted` describes a registry that no longer exists. Writing
+    // it would leave GRANTED rows standing for tools the browser does not
+    // hold, and nothing would ever clear them, because `close()` only runs
+    // when `isOpen` is true. That is the manifest drifting from the browser:
+    // the exact failure this class exists to prevent, and the one the header
+    // above calls the most dangerous shape a bug can take here.
+    if (this.controllers.get(lifetime) !== ac) return;
 
     this.grants.set(lifetime, granted);
     if (failed.length > 0) this.failures.set(lifetime, failed);

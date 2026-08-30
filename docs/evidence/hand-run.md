@@ -268,15 +268,33 @@ Open **DevTools → Application → WebMCP** (per CLAUDE.md §6 and
 [Chrome's own docs](https://developer.chrome.com/docs/devtools/application/webmcp)), filtered to one
 origin at a time (e.g. Seat 2's origin during REVIEW).
 
-- **PASS:** the pane lists exactly the tools this project's own manifest shows as GRANTED for that
-  origin at that phase — no more, no fewer — with an invocation counter that matches the manifest's
-  own `used` column, and a call log showing each call's input, output and status (success/refused).
-  This is Chrome, in its own first-party UI, corroborating the NOT GRANTED claim independently of
-  anything this project renders — put it on camera next to the manifest.
-- **FAIL:** the DevTools pane shows a tool the manifest says is NOT GRANTED for that origin, or a
-  count that disagrees with the manifest's — that would mean the manifest is not actually a faithful
-  projection of the registry, which is the single most load-bearing claim in this build. Stop and
-  investigate `ToolRegistry.manifest()` before filming anything further.
+⚠️ **Expect prefixed names, and know why before you are on camera.** DevTools lists the
+**registered** names — `seat2__open_exhibit`, `seat2__extract_text` — while the manifest lists the
+**capability** — `open_exhibit`, `extract_text`. That is correct and expected. WebMCP tool names are
+unique per DOCUMENT, so each actor's copy of a capability must be registered under its own name
+(`registeredToolName` in `packages/record/src/webmcp/tools.ts`). Compare by capability: strip the
+`a__` / `b__` / `seat1__` / `seat2__` prefix, then compare sets.
+
+This is a good beat rather than an awkward one. The prefix is the browser's per-document uniqueness
+made visible, and it is the reason Advocate B holds anything at all — before 30 Aug 2026 both sides
+were declared under one name, Chrome refused the second of each pair, and B and Seat 2 held nothing.
+Say that on camera if the names come up.
+
+- **PASS:** with prefixes stripped, the pane lists exactly the capabilities this project's manifest
+  shows as GRANTED for that origin at that phase — no more, no fewer — with an invocation counter
+  that matches the manifest's own `used` column, and a call log showing each call's input, output and
+  status (success/refused). This is Chrome, in its own first-party UI, corroborating the NOT GRANTED
+  claim independently of anything this project renders — put it on camera next to the manifest.
+- **FAIL:** with prefixes stripped, the DevTools pane shows a capability the manifest says is NOT
+  GRANTED for that origin, or a count that disagrees with the manifest's — that would mean the
+  manifest is not actually a faithful projection of the registry, which is the single most
+  load-bearing claim in this build. Stop and investigate `ToolRegistry.manifest()` before filming
+  anything further.
+- ⚠️ **Unverified, check it here:** the appeal closes and re-opens `verdictDraft`, so Chrome gets a
+  FRESH registration of `seat1__cite` while `Ledger.countsFor` keeps counting across the whole run.
+  If Chrome's invocation counter resets on re-registration, the counter and the `used` column will
+  disagree after any filmed appeal, and that is the tool's behaviour rather than a defect in the
+  manifest. Spend an appeal, cite again, and compare before you rely on the counter on camera.
 
 ## Verifying pdf.js against a real PDF
 

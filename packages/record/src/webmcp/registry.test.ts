@@ -204,7 +204,13 @@ describe('ToolRegistry', () => {
     it('registers every tool under a name unique to the document', async () => {
       for (const lifetime of LIFETIMES) await registry.open(lifetime);
       const names = mc.tools.map((t) => t.name);
-      expect(names.length).toBe(new Set(names).size);
+      // Uniqueness ALONE is vacuous: the double rejects duplicates, so
+      // `mc.tools` can never hold one, and this passed against the very bug it
+      // was written for. The count is what makes it real — one registration
+      // per (actor, tool) pair declared in the catalogue, none dropped.
+      const expected = TOOLS.reduce((n, spec) => n + spec.actors.length, 0);
+      expect(names.length).toBe(expected);
+      expect(new Set(names).size).toBe(expected);
     });
 
     it("never lets one actor's registered name reach another actor", async () => {
@@ -215,6 +221,11 @@ describe('ToolRegistry', () => {
         // it could pass to reach A's tool.
         expect(seen.get(t.name) ?? o).toBe(o);
         seen.set(t.name, o);
+      }
+      // Disjointness ALONE is vacuous — an actor holding NOTHING shares nothing,
+      // which is exactly the bug. Assert both sides are non-empty first.
+      for (const o of [ORIGIN.A, ORIGIN.B, ORIGIN.seat1, ORIGIN.seat2]) {
+        expect(mc.visibleTo(o).length).toBeGreaterThan(0);
       }
       expect(mc.visibleTo(ORIGIN.A).some((n) => mc.visibleTo(ORIGIN.B).includes(n))).toBe(false);
       expect(mc.visibleTo(ORIGIN.seat1).some((n) => mc.visibleTo(ORIGIN.seat2).includes(n))).toBe(false);
@@ -230,17 +241,27 @@ describe('ToolRegistry', () => {
      * one actor quietly holding less than the manifest implies.
      */
     it('never declares one capability twice for the same actor in overlapping lifetimes', () => {
-      const seen = new Map<string, Lifetime>();
+      // Every lifetime per key, and every PAIR of them. Keeping only the last
+      // one seen compared each declaration against its immediate predecessor
+      // only, which let the very collision this test names — boardRead and
+      // verdictDraft, both seats, overlapping at VERDICT — slip through
+      // whenever a third declaration sat between them in array order.
+      const declared = new Map<string, Lifetime[]>();
       for (const spec of TOOLS) for (const actor of spec.actors) {
         const key = `${actor}::${spec.name}`;
-        const other = seen.get(key);
-        if (other && other !== spec.lifetime) {
-          const a = LIFETIME_WINDOW[other], b = LIFETIME_WINDOW[spec.lifetime];
-          const idx = (p: Phase) => PHASE_ORDER.indexOf(p);
-          const overlaps = idx(a.startsAt) <= idx(b.endsAfter) && idx(b.startsAt) <= idx(a.endsAfter);
-          expect(overlaps, `${key} is declared in both ${other} and ${spec.lifetime}, whose phase windows overlap — the second registration would be refused as a duplicate name`).toBe(false);
+        const list = declared.get(key) ?? [];
+        if (!list.includes(spec.lifetime)) list.push(spec.lifetime);
+        declared.set(key, list);
+      }
+      const idx = (ph: Phase) => PHASE_ORDER.indexOf(ph);
+      for (const [key, lifetimes] of declared) {
+        for (let i = 0; i < lifetimes.length; i++) {
+          for (let j = i + 1; j < lifetimes.length; j++) {
+            const a = LIFETIME_WINDOW[lifetimes[i]], b = LIFETIME_WINDOW[lifetimes[j]];
+            const overlaps = idx(a.startsAt) <= idx(b.endsAfter) && idx(b.startsAt) <= idx(a.endsAfter);
+            expect(overlaps, `${key} is declared in both ${lifetimes[i]} and ${lifetimes[j]}, whose phase windows overlap — the second registration would be refused as a duplicate name`).toBe(false);
+          }
         }
-        seen.set(key, spec.lifetime);
       }
     });
 
@@ -274,7 +295,55 @@ describe('ToolRegistry', () => {
       await expect(mc.registerTool(def('reuse'), { signal: new AbortController().signal, exposedTo: [ORIGIN.B] }))
         .resolves.toBeUndefined();
     });
+    it('rejects registration on an already-aborted signal, as Chrome does', async () => {
+      const ac = new AbortController();
+      ac.abort();
+      await expect(mc.registerTool(def('already-gone'), { signal: ac.signal, exposedTo: [ORIGIN.A] }))
+        .rejects.toThrow(/aborted/);
+      // And it left nothing behind: a resolve here used to strand a tool live
+      // forever, because 'abort' never fires on an already-aborted signal.
+      expect(mc.visibleTo(ORIGIN.A)).toEqual([]);
+    });
   });
+
+  /**
+   * `registerTool` is real browser IPC, so `open()` has a genuine await window
+   * per tool and `close()` can land inside it. Nothing serialises phase
+   * transitions: App.tsx fires `enter()` without awaiting, and spend_appeal
+   * fires `enter('REVIEW')` from a detached timeout. The realistic collision is
+   * an agent spending its appeal as the human confirms.
+   */
+  describe('a lifetime closed while its registrations are in flight', () => {
+    it('writes no grants, so the manifest never shows what the browser dropped', async () => {
+      let reachedGate!: () => void;
+      const reached = new Promise<void>((r) => { reachedGate = r; });
+      let release!: () => void;
+      const gate = new Promise<void>((r) => { release = r; });
+
+      const real = mc.registerTool.bind(mc);
+      let n = 0;
+      vi.spyOn(mc, 'registerTool').mockImplementation(async (d: any, o: any) => {
+        if (n++ === 1) { reachedGate(); await gate; }
+        return real(d, o);
+      });
+
+      const opening = registry.open('filing');
+      await reached;            // we are now inside the await window
+      registry.close('filing'); // ... and the phase moves under us
+      release();
+      await opening;
+
+      expect(registry.isOpen('filing')).toBe(false);
+      expect(registry.registered()).toEqual([]);
+      expect(registry.manifest('A').granted).toEqual([]);
+      expect(registry.manifest('B').granted).toEqual([]);
+      // Nothing would ever clear a stale entry either: close() only runs when
+      // isOpen is true, so a lie written here outlives every later phase.
+      expect(registry.registrationFailures()).toEqual([]);
+      vi.restoreAllMocks();
+    });
+  });
+
 
   describe('bareToolName', () => {
     it('strips a known actor prefix', () => {
