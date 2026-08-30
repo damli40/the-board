@@ -13,6 +13,38 @@ describe('ExhibitStore', () => {
     expect([a.id, b.id]).toEqual(['E1', 'E2']);
   });
 
+  // Final review, Blocker 2. The id used to be `E${items.length + 1}`, read
+  // before an await; two calls in flight together read the same length and
+  // minted the same id. That is the double prompt's exact shape: one
+  // instruction fanned into A's and B's panels at the same instant
+  // (docs/evidence/hand-run.md Step 1B), and the damage was silent: `get()`
+  // resolves a duplicated id to whichever document landed first, forever, so
+  // one side's fact ends up pointing at the other side's document and the
+  // quote check runs against text that is not theirs.
+  it('mints a distinct id for two filings made at the same instant, not one id twice', async () => {
+    const [a, b] = await Promise.all([
+      store.add({ side: 'A', kind: 'text', name: 'a.txt', bytes: bytes('from A'), filedAt: '2026-08-20T09:00:00Z' }),
+      store.add({ side: 'B', kind: 'text', name: 'b.txt', bytes: bytes('from B'), filedAt: '2026-08-20T09:00:00Z' }),
+    ]);
+
+    expect(a.id).not.toBe(b.id);
+    expect([a.id, b.id].sort()).toEqual(['E1', 'E2']);
+    // The ids must resolve back to the documents that were actually filed
+    // under them, the property a collision destroys.
+    expect(store.get(a.id)!.name).toBe('a.txt');
+    expect(store.get(b.id)!.name).toBe('b.txt');
+    expect(store.all()).toHaveLength(2);
+  });
+
+  it('keeps ids distinct across a larger simultaneous batch', async () => {
+    const filed = await Promise.all(
+      Array.from({ length: 12 }, (_, i) =>
+        store.add({ side: 'A', kind: 'text', name: `n${i}.txt`, bytes: bytes(`body ${i}`), filedAt: '2026-08-20T09:00:00Z' })
+      )
+    );
+    expect(new Set(filed.map((e) => e.id)).size).toBe(12);
+  });
+
   it('hashes content, so identical bytes hash identically', async () => {
     const a = await store.add({ side: 'A', kind: 'text', name: 'a.txt', bytes: bytes('same'), filedAt: '2026-08-20T09:00:00Z' });
     const b = await store.add({ side: 'B', kind: 'text', name: 'b.txt', bytes: bytes('same'), filedAt: '2026-08-20T09:01:00Z' });

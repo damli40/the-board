@@ -69,6 +69,30 @@ export class ExhibitStore {
    * of re-attempting (and re-failing) the open.
    */
   private dbFailed = false;
+  /**
+   * Final review, Blocker 2: the id used to be derived as
+   * `E${this.items.length + 1}`, read at the top of `add()`, and `add()`
+   * then awaits hashing and byte storage before it pushes anything into
+   * `items`. Two concurrent calls therefore read the SAME length and mint
+   * the SAME id.
+   *
+   * That is not a theoretical race in this project, it is the documented
+   * demo: `docs/evidence/hand-run.md` Step 1B fires one instruction at
+   * advocates A and B simultaneously through the double prompt, and the
+   * double prompt broadcasts to both panels at once. Both filings would come
+   * back as the same id, `get()` would resolve it to whichever document
+   * landed first, permanently, and from then on one side's fact would
+   * point at the other side's document, the quote check would run against
+   * text that is not theirs, and the split's differing-input list would
+   * silently merge two exhibits into one. Nothing would throw.
+   *
+   * A monotonic counter incremented at CLAIM time closes it: the id is taken
+   * before the first `await`, so no two calls can hold the same one. If a
+   * filing later fails (a quota error on the byte write), its id is burned
+   * and the sequence skips a number. A gap is visible and harmless; a
+   * collision is invisible and corrupting.
+   */
+  private nextId = 1;
 
   /** Resolves to the database, or `undefined` when IndexedDB is absent or has failed — never rejects. */
   private async db(): Promise<IDBDatabase | undefined> {
@@ -96,7 +120,8 @@ export class ExhibitStore {
   }
 
   async add(input: ExhibitInput): Promise<Exhibit> {
-    const id = `E${this.items.length + 1}`;
+    // Claimed synchronously, before any await. See `nextId` above.
+    const id = `E${this.nextId++}`;
     const sha256 = await sha256Hex(input.bytes);
 
     let text: string | null = null;
