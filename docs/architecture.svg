@@ -24,7 +24,7 @@
   <rect x="50" y="128" width="380" height="555" rx="12" fill="#111111" stroke="#525252" stroke-width="2"/>
   <text x="70" y="158" font-size="19" font-weight="700" fill="#f5f5f5">PARENT ORIGIN</text>
   <text x="70" y="178" font-size="13" fill="#a3a3a3">http://localhost:8080</text>
-  <text x="70" y="195" font-size="11" font-style="italic" fill="#737373">production: theboard.app (the swap lives in one file, origins.ts)</text>
+  <text x="70" y="195" font-size="11" font-style="italic" fill="#737373">production target: theboard-record.netlify.app, NOT YET DEPLOYED (origins.ts)</text>
 
   <!-- THE RECORD -->
   <rect x="70" y="212" width="340" height="150" rx="8" fill="#171717" stroke="#404040"/>
@@ -67,7 +67,16 @@
   <text x="451" y="527" text-anchor="middle" font-size="9" fill="#a3a3a3">getTools({fromOrigins})</text>
 
   <!-- ============ PANEL TEMPLATE (4 cross-origin frames) ============ -->
-  <!-- ADVOCATE A — cyan — localhost:8081 -->
+  <!-- FIX ROUND 1: reviewer found the prior version gave A and B (and seat1
+       and seat2) different partial tool lists with no ellipsis, which reads
+       as a capability difference that does not exist in tools.ts (A and B
+       both hold the same 7 filing-lifetime tools; seat1 and seat2 both hold
+       the same 6 boardRead/verdictDraft tools). Fixed: both boxes in a pair
+       now show the identical 4 sample lines plus an identical "+N more"
+       line that names the rest and says outright that the set matches the
+       other box, so the diagram cannot be misread as showing an asymmetry
+       the registry does not have. -->
+  <!-- ADVOCATE A: cyan, localhost:8081 -->
   <g>
     <rect x="460" y="128" width="350" height="270" rx="10" fill="#0e1a1c" stroke="#22d3ee" stroke-width="2"/>
     <text x="478" y="158" font-size="16.5" font-weight="700" fill="#67e8f9">ADVOCATE A</text>
@@ -78,14 +87,15 @@
     <text x="486" y="250" font-size="12" fill="#d4d4d4">&#9679; file_fact</text>
     <text x="486" y="268" font-size="12" fill="#d4d4d4">&#9679; dispute</text>
     <text x="486" y="286" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
-    <text x="478" y="314" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
-    <text x="486" y="334" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; record_assessment (seat-only)</text>
-    <line x1="486" y1="330" x2="676" y2="330" stroke="#f87171" stroke-width="1" opacity="0.6"/>
-    <text x="486" y="352" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
-    <line x1="486" y1="348" x2="654" y2="348" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="486" y="306" font-size="10.5" font-style="italic" fill="#a3a3a3" opacity="0.85">+ concede, object, spend_appeal (same set as B)</text>
+    <text x="478" y="328" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="486" y="348" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; record_assessment (seat-only)</text>
+    <line x1="486" y1="344" x2="676" y2="344" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="486" y="366" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="486" y1="362" x2="654" y2="362" stroke="#f87171" stroke-width="1" opacity="0.6"/>
   </g>
 
-  <!-- ADVOCATE B — amber — localhost:8082 -->
+  <!-- ADVOCATE B: amber, localhost:8082 -->
   <g>
     <rect x="850" y="128" width="350" height="270" rx="10" fill="#1c1408" stroke="#f59e0b" stroke-width="2"/>
     <text x="868" y="158" font-size="16.5" font-weight="700" fill="#fcd34d">ADVOCATE B</text>
@@ -94,16 +104,17 @@
     <text x="868" y="212" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
     <text x="876" y="232" font-size="12" fill="#d4d4d4">&#9679; file_exhibit</text>
     <text x="876" y="250" font-size="12" fill="#d4d4d4">&#9679; file_fact</text>
-    <text x="876" y="268" font-size="12" fill="#d4d4d4">&#9679; concede</text>
-    <text x="876" y="286" font-size="12" fill="#d4d4d4">&#9679; dispute</text>
-    <text x="868" y="314" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
-    <text x="876" y="334" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; record_assessment (seat-only)</text>
-    <line x1="876" y1="330" x2="1066" y2="330" stroke="#f87171" stroke-width="1" opacity="0.6"/>
-    <text x="876" y="352" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
-    <line x1="876" y1="348" x2="1044" y2="348" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="876" y="268" font-size="12" fill="#d4d4d4">&#9679; dispute</text>
+    <text x="876" y="286" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
+    <text x="876" y="306" font-size="10.5" font-style="italic" fill="#a3a3a3" opacity="0.85">+ concede, object, spend_appeal (same set as A)</text>
+    <text x="868" y="328" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="876" y="348" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; record_assessment (seat-only)</text>
+    <line x1="876" y1="344" x2="1066" y2="344" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="876" y="366" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="876" y1="362" x2="1044" y2="362" stroke="#f87171" stroke-width="1" opacity="0.6"/>
   </g>
 
-  <!-- SEAT 1 — violet — localhost:8083 -->
+  <!-- SEAT 1: violet, localhost:8083 -->
   <g>
     <rect x="460" y="420" width="350" height="270" rx="10" fill="#160f22" stroke="#a78bfa" stroke-width="2"/>
     <text x="478" y="450" font-size="16.5" font-weight="700" fill="#c4b5fd">SEAT 1</text>
@@ -112,16 +123,17 @@
     <text x="478" y="504" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
     <text x="486" y="524" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
     <text x="486" y="542" font-size="12" fill="#d4d4d4">&#9679; extract_text (page lends)</text>
-    <text x="486" y="560" font-size="12" fill="#d4d4d4">&#9679; record_assessment</text>
-    <text x="486" y="578" font-size="12" fill="#d4d4d4">&#9679; cite</text>
-    <text x="478" y="606" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
-    <text x="486" y="626" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; file_exhibit (party-only)</text>
-    <line x1="486" y1="622" x2="646" y2="622" stroke="#f87171" stroke-width="1" opacity="0.6"/>
-    <text x="486" y="644" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
-    <line x1="486" y1="640" x2="654" y2="640" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="486" y="560" font-size="12" fill="#d4d4d4">&#9679; search_exhibits (page lends)</text>
+    <text x="486" y="578" font-size="12" fill="#d4d4d4">&#9679; record_assessment</text>
+    <text x="486" y="598" font-size="10.5" font-style="italic" fill="#a3a3a3" opacity="0.85">+ cite, draft_verdict (same set as seat2)</text>
+    <text x="478" y="620" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="486" y="640" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; file_exhibit (party-only)</text>
+    <line x1="486" y1="636" x2="646" y2="636" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="486" y="658" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="486" y1="654" x2="654" y2="654" stroke="#f87171" stroke-width="1" opacity="0.6"/>
   </g>
 
-  <!-- SEAT 2 — emerald — localhost:8084 -->
+  <!-- SEAT 2: emerald, localhost:8084 -->
   <g>
     <rect x="850" y="420" width="350" height="270" rx="10" fill="#0a1f16" stroke="#34d399" stroke-width="2"/>
     <text x="868" y="450" font-size="16.5" font-weight="700" fill="#6ee7b7">SEAT 2</text>
@@ -129,14 +141,15 @@
     <line x1="868" y1="482" x2="1182" y2="482" stroke="#34d399" stroke-width="1" opacity="0.35"/>
     <text x="868" y="504" font-size="11" letter-spacing="1" fill="#a3a3a3">GRANTED</text>
     <text x="876" y="524" font-size="12" fill="#d4d4d4">&#9679; open_exhibit</text>
-    <text x="876" y="542" font-size="12" fill="#d4d4d4">&#9679; search_exhibits (page lends)</text>
-    <text x="876" y="560" font-size="12" fill="#d4d4d4">&#9679; record_assessment</text>
-    <text x="876" y="578" font-size="12" fill="#d4d4d4">&#9679; draft_verdict</text>
-    <text x="868" y="606" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
-    <text x="876" y="626" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; file_exhibit (party-only)</text>
-    <line x1="876" y1="622" x2="1036" y2="622" stroke="#f87171" stroke-width="1" opacity="0.6"/>
-    <text x="876" y="644" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
-    <line x1="876" y1="640" x2="1044" y2="640" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="876" y="542" font-size="12" fill="#d4d4d4">&#9679; extract_text (page lends)</text>
+    <text x="876" y="560" font-size="12" fill="#d4d4d4">&#9679; search_exhibits (page lends)</text>
+    <text x="876" y="578" font-size="12" fill="#d4d4d4">&#9679; record_assessment</text>
+    <text x="876" y="598" font-size="10.5" font-style="italic" fill="#a3a3a3" opacity="0.85">+ cite, draft_verdict (same set as seat1)</text>
+    <text x="868" y="620" font-size="11" letter-spacing="1" fill="#737373">NOT GRANTED</text>
+    <text x="876" y="640" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; file_exhibit (party-only)</text>
+    <line x1="876" y1="636" x2="1036" y2="636" stroke="#f87171" stroke-width="1" opacity="0.6"/>
+    <text x="876" y="658" font-size="11.5" fill="#f87171" opacity="0.8">&#9675; confirm (nobody holds this)</text>
+    <line x1="876" y1="654" x2="1044" y2="654" stroke="#f87171" stroke-width="1" opacity="0.6"/>
   </g>
 
   <!-- caption -->

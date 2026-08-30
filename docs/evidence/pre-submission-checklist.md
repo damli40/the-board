@@ -47,23 +47,25 @@ empty, also check `grep -rn "registerTool" packages/` before concluding the call
 ## 3. Origin-Agent-Cluster on all five live hosts
 
 ```bash
-for h in theboard.app a.theboard.app b.theboard.app seat1.theboard.app seat2.theboard.app; do
+for h in theboard-record.netlify.app theboard-a.netlify.app theboard-b.netlify.app \
+         theboard-seat1.netlify.app theboard-seat2.netlify.app; do
   curl -sI "https://$h" | grep -qi 'origin-agent-cluster' && echo "$h OK" || echo "$h MISSING HEADER"
 done
 ```
 
 **Expected output:** five lines, each ending `OK`.
 
-**This only applies once the five subdomains above are live.** Today they are not: this project runs
-locally on five `localhost` ports (`8080`–`8084`, see `README.md`'s quickstart and
-`packages/record/src/config/origins.ts`), and `theboard.app` resolves to nothing this project
-controls. Do not run this command, or cite its result, before the five subdomains are actually
-deployed and DNS has propagated. When you do run it, a `MISSING HEADER` line means that origin's
-Netlify site is not serving the `Origin-Agent-Cluster` header from its `netlify.toml`; check that
-site's deployed `netlify.toml` matches the one in this repo (`packages/record/netlify.toml` for the
-parent, `packages/panel/netlify.toml` for the four panel sites) and that its `Permissions-Policy`
-and `Origin-Agent-Cluster` origin values were updated to the real subdomain, not left as the
-localhost dev values.
+**This only applies once the five sites above are live.** As of this checklist's last edit they are
+not: this project runs locally on five `localhost` ports (`8080`–`8084`, see `README.md`'s
+quickstart and `packages/record/src/config/origins.ts`'s `DEV_ORIGINS`), and the five
+`theboard-*.netlify.app` sites named above (`PROD_ORIGINS` in that same file) have not been created
+or deployed yet. `docs/evidence/deploy.md` is the runbook for creating and deploying them. Do not run
+this command, or cite its result, before all five sites are actually deployed. When you do run it, a
+`MISSING HEADER` line means that origin's Netlify site is not serving the `Origin-Agent-Cluster`
+header from its `netlify.toml`; check that site's deployed `netlify.toml` matches the one in this
+repo (`packages/record/netlify.toml` for the parent, `packages/panel/netlify.toml` for the four panel
+sites) and that its `Permissions-Policy` and `Origin-Agent-Cluster` origin values match `PROD_ORIGINS`
+/ `PROD_PARENT_ORIGIN`, not the localhost dev values.
 
 ## 4. Naming-rule sweep (irreversible if skipped)
 
@@ -98,10 +100,13 @@ npm run build --workspace=packages/panel
 grep -rn "sk-\|sk_live\|sk_test" packages/record/dist packages/panel/dist
 ```
 
-**Expected output:** no matches. Both API keys this project uses (the model proxy's provider key)
-live only in `netlify/functions/model-proxy.ts`, which runs server-side as a Netlify Function and is
-never bundled into the client build; this command is the mechanical proof of that, not an assumption
-to trust by reading the source.
+**Expected output:** no matches. This project uses exactly one secret, `MODEL_API_KEY`, read only in
+[`packages/panel/netlify/functions/model-proxy.ts`](../../packages/panel/netlify/functions/model-proxy.ts),
+which runs server-side as a Netlify Function (deployed unchanged to all four panel sites, each with
+its own environment variable value) and is never bundled into the client build.
+[`packages/record/netlify/functions/capture.ts`](../../packages/record/netlify/functions/capture.ts)
+needs no key at all; it only fetches a URL. This command is the mechanical proof that neither
+function's secret leaks into a client bundle, not an assumption to trust by reading the source.
 
 ---
 

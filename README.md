@@ -70,11 +70,22 @@ and then naming the one gap reads as having gone further.
 
 | Chrome's guardrail | Where this project does it |
 |---|---|
-| Cap inbound tool output and reject oversized payloads | `extract_text` and `search_exhibits` truncate to 1.5K characters and say so in the payload itself, via a shared helper: [`packages/record/src/shared/truncate.ts`](packages/record/src/shared/truncate.ts) |
+| Cap inbound tool output and reject oversized payloads | every tool body's output is truncated to 1.5K characters and says so in the payload itself: [`packages/record/src/tools/impl.ts`](packages/record/src/tools/impl.ts) builds its entire tool map through one factory, `withTruncation`, that applies the shared [`truncateForTool`](packages/record/src/shared/truncate.ts) helper to every body's return value, so no tool can be added outside it and bypass the cap. `extract_text` and `search_exhibits` are the two that actually approach the limit in practice. |
 | Spotlighting: delimit untrusted content before it reaches the model | [`packages/panel/src/agent/sanitize.ts`](packages/panel/src/agent/sanitize.ts) fences and redacts counterparty text before the model ever sees it |
 | Name `untrustedContentHint` in the system instruction | The panel's own system instruction spells it out by name (quoted in full in `SUBMISSION.md`) |
 | Restrict cross-origin interactions | `getTools({ fromOrigins })` on the calling side, `exposedTo` at registration on the owning side: a panel discovers only what was granted to its own origin |
 | Confirm consequential actions with a human | `confirm` is not a tool. A named human presses it directly, outside every agent loop, in any phase |
+
+Two things worth naming so this doesn't read as unaware of the rest of the surface. First, the
+spotlighting row above delimits untrusted content with plain fence tags, which is cheap and
+token-efficient; Chrome's own guidance names a stronger, costlier upgrade, base64-encoding the fenced
+content instead of just tagging it, at roughly a third more tokens. That upgrade is not built here;
+it is the next step if this project needed to defend against a model that learns to read past a
+plain-text fence. Second, `registerTool`/`getTools` is not the only way WebMCP exposes a tool: the
+spec also has a declarative path, where certain HTML `<form>` attributes compile down to a tool
+automatically with no JavaScript registration call at all. This project uses the imperative API
+throughout, because a tool's lifetime here is a phase of a dispute, not a static form on the page,
+but the declarative path exists and is worth knowing about.
 
 ## Quickstart
 
@@ -154,6 +165,16 @@ with. That is not a workaround this project invented for a gap in the spec. It i
 spec's own authors converged on after trying the named-unregister approach first, which makes "a
 lifetime is an `AbortController`" a stronger claim than it would otherwise be.
 
+**Why this project registers and withdraws tools dynamically, against Chrome's own advice to
+default to static registration.** Chrome's published guidance says most applications should register
+their tools once and leave them registered; that guidance is Chrome's, not the spec's, which takes no
+position on registration strategy at all. Chrome's own next point after that default is the
+exception: a page may register and unregister tools as its own state changes. A phase of a dispute is
+exactly that kind of page state. So this project is not dynamic despite Chrome's guidance; it is the
+specific case Chrome's guidance itself carves out, and what is unusual here is not that registration
+changes, but that the change itself, a tool visibly leaving a hand when a phase closes, is the thing
+this project exists to demonstrate on camera.
+
 ## Running the tests
 
 ```bash
@@ -190,32 +211,51 @@ as plainly as the claim.
   on the record instead of letting it pass quietly. The Board does not stop an agent from being
   fooled. It stops a fooled agent from being consequential, and it makes the attempt part of the
   record.
-- **Cross-origin tool discovery is not exercised by the automated test suite.** Vitest runs in Node
-  and jsdom, neither of which enforces real browser origin isolation, so the claim that one origin
-  cannot see another origin's tools is verified by hand, once, in a real Chrome window, following
-  [`docs/evidence/hand-run.md`](docs/evidence/hand-run.md), including a cross-check against Chrome's
-  own DevTools → Application → WebMCP pane.
-- **`pdf.js` is verified by hand, once, against a real PDF; it is stubbed everywhere in the test
-  suite.** The unit tests exercise the extraction logic against a fake loader on purpose, so they
-  stay fast and deterministic. Whether the real `pdfjs-dist` package actually parses a real file
-  through this project's own Vite/worker wiring is a manual check, recorded in `hand-run.md`.
+- **Cross-origin tool discovery has not been machine-tested against real Chrome.** Vitest runs in
+  Node and jsdom, neither of which enforces real browser origin isolation, so the claim that one
+  origin cannot see another origin's tools has not been verified in a real browser. The check is
+  written up as [`docs/evidence/hand-run.md`](docs/evidence/hand-run.md), including a cross-check
+  against Chrome's own DevTools → Application → WebMCP pane, and it has not yet been run. This is the
+  single claim the whole architecture rests on, so it is stated here without softening: nothing in
+  this submission should be read as a browser-confirmed result until that runbook is actually
+  executed and this section is updated with what happened.
+- **`pdf.js` is stubbed everywhere in the automated test suite.** The unit tests exercise the
+  extraction logic against a fake loader on purpose, so they stay fast and deterministic. Whether the
+  real `pdfjs-dist` package actually parses a real file through this project's own Vite/worker wiring
+  was verified once, outside this repo's test suite, in a standalone Node script against the exact
+  bytes this project ships (see `task-9-report.md` for that transcript). The same check against this
+  project's own browser-side wiring is prescribed step by step in `hand-run.md` and has not yet been
+  performed.
 - **The link-capture function and the model proxy are demo-shaped, not production-shaped.**
-  `netlify/functions/capture.ts` fetches any user-supplied `https` URL with no allowlist: a
-  server-side request forgery is possible if this were ever exposed to untrusted input at scale.
-  `netlify/functions/model-proxy.ts` is unauthenticated: it does not leak the underlying key, but
-  anyone who finds the endpoint can spend it. Both are accepted limitations of a five-day demo that
-  stores nothing server-side, not defects to fix quietly later.
-- **The injection detector has a documented blind spot.** Its `directed-outcome` pattern is written
-  to catch a phrase naming one party mid-sentence, for example "rule for B," but a plain letter "A"
-  also reads as the indefinite article, so the identical phrasing naming that party is missed unless
-  the word "side" or "party" comes first. This is written down as a comment in
-  [`packages/record/src/injection/detect.ts`](packages/record/src/injection/detect.ts) and pinned by
-  a dedicated test, not silently left for someone to rediscover.
-- **The tool-lifetime claim is scoped to this project's own panels.** A spike built to check whether
-  a third-party agent, not one of these four panels, notices a tool appearing or disappearing
-  mid-session was never run (`docs/evidence/spike-toolchange.md`, marked `UNRUN`). This submission
-  claims the tool-lifetime beat only for the in-page panels it ships, where it was verified directly,
-  and makes no claim about how any external agent would behave.
+  [`packages/record/netlify/functions/capture.ts`](packages/record/netlify/functions/capture.ts)
+  fetches any user-supplied `https` URL with no allowlist: a server-side request forgery is possible
+  if this were ever exposed to untrusted input at scale.
+  [`packages/panel/netlify/functions/model-proxy.ts`](packages/panel/netlify/functions/model-proxy.ts)
+  is unauthenticated: it does not leak the underlying key, but anyone who finds the endpoint can
+  spend it. Both are accepted limitations of a five-day demo that stores nothing server-side, not
+  defects to fix quietly later.
+- **The injection detector has a documented, narrower-than-it-sounds blind spot.** Its
+  `directed-outcome` pattern does catch a phrase naming either party when the letter is followed
+  immediately by punctuation or the end of the sentence (`rule for A.`), or when the word "side" or
+  "party" introduces it (`rule for side A`). What it actually misses is a bare `rule for A` sitting
+  mid-clause, with more text following and no "side"/"party" prefix (`rule for A in this matter`),
+  because a lone "A" there is indistinguishable from the indefinite article; the identical phrasing
+  naming B is caught in that same position, since "B" has no such collision. This is written down as
+  a comment in [`packages/record/src/injection/detect.ts`](packages/record/src/injection/detect.ts)
+  and pinned by a dedicated test, not silently left for someone to rediscover.
+- **The tool-lifetime claim is scoped to this project's own panels, and to what unit tests can
+  show.** What the automated suite actually verifies is that this project's own panels, which call
+  `getTools()` fresh at the start of every turn, see a different tool list before and after a phase
+  closes, against a stand-in `ModelContext` in Vitest
+  ([`packages/record/src/webmcp/fakeModelContext.ts`](packages/record/src/webmcp/fakeModelContext.ts)),
+  not against real WebMCP in a real browser. A real-browser check of the same behaviour is written up
+  and has not yet been run (see the cross-origin discovery limitation above). Separately, a spike
+  built to check whether a genuinely external, third-party agent, not one of these four panels,
+  notices a tool appearing or disappearing mid-session was also never run
+  (`docs/evidence/spike-toolchange.md`, marked `UNRUN`). This submission claims the tool-lifetime beat
+  only for the in-page panels it ships, covered by unit tests against a stand-in `ModelContext` plus
+  a real-browser check that is written down and not yet run, and makes no claim about how any
+  external agent would behave.
 
 ## What it deliberately does not do
 

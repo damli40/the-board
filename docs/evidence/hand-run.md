@@ -17,11 +17,11 @@ to prove `file_exhibit` itself works as a real tool call, not just as fixture-lo
 1. `chrome://flags/#enable-webmcp-testing` → **Enabled** → relaunch Chrome.
 2. Start the dev server (`npm run dev` or however this repo's Vite setup serves the five origins —
    see `scripts/dev-origins.mjs`) and open the parent origin (`localhost:8080` in dev,
-   `theboard.app` once deployed).
+   `theboard-record.netlify.app` once deployed, see `docs/evidence/deploy.md`).
 3. Confirm the four iframes (Advocate A, Advocate B, Seat 1, Seat 2) all render past
    "WebMCP not available" — if any shows that amber message, the flag from step 1 didn't take on
    that specific origin/port; re-check before going further.
-4. **Pre-flight the model proxy** (`netlify/functions/model-proxy.ts`) with one throwaway prompt in
+4. **Pre-flight the model proxy** (`packages/panel/netlify/functions/model-proxy.ts`) with one throwaway prompt in
    any panel's manual-goal box before recording. If it's flaky on the day, every step below that
    says "type into a panel" has a fallback: open that origin's DevTools console and call
    `document.modelContext.getTools()` / `.executeTool(tool, json)` directly — slower, but has zero
