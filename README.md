@@ -235,7 +235,11 @@ as plainly as the claim.
   [`packages/panel/netlify/functions/model-proxy.ts`](packages/panel/netlify/functions/model-proxy.ts)
   is unauthenticated: it does not leak the underlying key, but anyone who finds the endpoint can
   spend it. Both are accepted limitations of a five-day demo that stores nothing server-side, not
-  defects to fix quietly later.
+  defects to fix quietly later. The proxy is also where the panel's own request and response shapes
+  are translated into a real Anthropic Messages API call and back
+  ([`packages/panel/src/proxy/anthropic.ts`](packages/panel/src/proxy/anthropic.ts)); that
+  translation is unit-tested against recorded response shapes, but it has never run against a live
+  provider, so the hand-run's pre-flight step is the first thing that will exercise it for real.
 - **The injection detector has a documented, narrower-than-it-sounds blind spot.** Its
   `directed-outcome` pattern does catch a phrase naming either party when the letter is followed
   immediately by punctuation or the end of the sentence (`rule for A.`), or when the word "side" or

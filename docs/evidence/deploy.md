@@ -148,29 +148,44 @@ a live request at `/.netlify/functions/model-proxy`. See the "cannot verify" sec
 
 ## 4. Environment variables (panel sites only)
 
-Each panel site (`theboard-a`, `theboard-b`, `theboard-seat1`, `theboard-seat2`) needs two
-environment variables so `model-proxy.ts` can reach a model provider without the key ever shipping
-to the browser: `MODEL_API_KEY` and `MODEL_BASE_URL`. `theboard-record` does not need either; its
-only function, `capture.ts`, fetches a public URL and needs no credential.
+Each panel site (`theboard-a`, `theboard-b`, `theboard-seat1`, `theboard-seat2`) needs **one**
+required environment variable so `model-proxy.ts` can reach a model provider without the key ever
+shipping to the browser: `MODEL_API_KEY`. `theboard-record` does not need it; its only function,
+`capture.ts`, fetches a public URL and needs no credential.
 
 **These are set once per site, in the Netlify UI, and are never committed to this repo.** Site
 settings > Environment variables, or the equivalent CLI form:
 
 ```bash
-netlify env:set MODEL_API_KEY  "<the real key>"  --site theboard-a     --context production
-netlify env:set MODEL_BASE_URL "<the endpoint>"  --site theboard-a     --context production
-netlify env:set MODEL_API_KEY  "<the real key>"  --site theboard-b     --context production
-netlify env:set MODEL_BASE_URL "<the endpoint>"  --site theboard-b     --context production
-netlify env:set MODEL_API_KEY  "<the real key>"  --site theboard-seat1 --context production
-netlify env:set MODEL_BASE_URL "<the endpoint>"  --site theboard-seat1 --context production
-netlify env:set MODEL_API_KEY  "<the real key>"  --site theboard-seat2 --context production
-netlify env:set MODEL_BASE_URL "<the endpoint>"  --site theboard-seat2 --context production
+netlify env:set MODEL_API_KEY "<the real key>" --site theboard-a     --context production
+netlify env:set MODEL_API_KEY "<the real key>" --site theboard-b     --context production
+netlify env:set MODEL_API_KEY "<the real key>" --site theboard-seat1 --context production
+netlify env:set MODEL_API_KEY "<the real key>" --site theboard-seat2 --context production
 ```
 
-This project's design deliberately uses more than one model provider across the two board seats,
-for independence (a shared provider between seat1 and seat2 would mean a correlated failure looks
-like agreement). If A/B and seat1/seat2 use different providers, the key and base URL values will
-differ across sites; that is expected, not a mistake.
+Two further variables are **optional**, and both default to something sensible:
+
+| Variable | Required | Default | What it does |
+|---|---|---|---|
+| `MODEL_API_KEY` | yes | none | The provider key. Read in the function, never sent to the browser. |
+| `MODEL_ID` | no | `claude-opus-5` | Which model that site's panel talks to. |
+| `MODEL_BASE_URL` | no | the first-party Anthropic API | Overrides the API base URL. |
+
+**What changed here, and why it matters before you set anything:** the proxy used to forward the
+panel's request body upstream untranslated, which meant `MODEL_BASE_URL` could name any endpoint at
+all and the function would happily post to it. It also meant nothing worked, because no provider
+accepts the shape the panel speaks. See the final fix report. The proxy now translates in both
+directions, against the **Anthropic Messages API**, so the variable's meaning has narrowed: it
+overrides the base URL of an endpoint that speaks that API, and it is not a way to point a panel at
+a provider with a different wire format. Set it only for an Anthropic-compatible gateway; leave it
+unset otherwise.
+
+That narrows one design intention worth naming rather than quietly dropping. This project wanted
+independence between the two board seats, because a shared provider between seat1 and seat2 means a
+correlated failure looks like agreement. The honest statement of what is shipped is that the
+seats can be given **different models and different keys** (set `MODEL_ID` per site), which is
+weaker than different providers. Two seats on the same provider with different models still share
+one vendor's failure modes. Say that, rather than implying more separation than the code delivers.
 
 Before the first deploy, and again before submitting, run the secrets sweep from
 `docs/evidence/pre-submission-checklist.md` (Section 5) against the built output: it greps
@@ -248,10 +263,21 @@ anything returns `[]`, with no exception. Two different causes produce the same 
   it is a deploy config problem (most likely step 5's header), and if it is missing in both, it is
   not something this runbook fixes.
 
-**A panel's agent loop fails outright, not just an empty tool list.** Check `MODEL_API_KEY` /
-`MODEL_BASE_URL` are actually set on that specific panel site (step 4); a 500 from
-`/.netlify/functions/model-proxy` with body `proxy not configured` means one of the two is missing
-on that site.
+**A panel's agent loop fails outright, not just an empty tool list.** The panel renders the failure
+as a `TRANSPORT ERROR` line carrying the status, and the proxy passes a real status through rather
+than flattening everything to one code, so the status names the cause:
+
+- **500 `proxy not configured`**: `MODEL_API_KEY` is not set on that specific panel site (step 4).
+- **400**: the panel sent a body this proxy could not translate. The body says what was wrong.
+- **401 / 403**: the key is set but rejected. **402 or a 400 mentioning credit balance**: the
+  account has no credit. Both are account problems, not deploy config.
+- **429**: rate limited. Slow the take down and retry; do not restructure anything.
+- **504 `model provider unreachable`**: a network-level failure reaching the provider.
+- **A Netlify function timeout (the default plan kills a synchronous function at 10 seconds)**:
+  this shows as a Netlify error page rather than one of the above. The proxy is already tuned
+  against it (bounded `max_tokens`, low effort), but a slow provider day can still hit it. The
+  hand-run's DevTools fallback (`document.modelContext.executeTool(...)` by hand) exists exactly
+  for this and has no dependency on a model responding at all.
 
 ---
 
@@ -270,6 +296,15 @@ Everything below needs a real Netlify site, which this task was explicitly not a
    endpoints actually answer a live HTTPS request.** The local `netlify build --offline` runs
    proved the functions are found, bundled, and included in the build output; they did not invoke
    either function or open a network port.
+2b. **Whether a real Anthropic Messages API call succeeds end to end through the proxy's adapter.**
+   The translation in both directions is unit-tested against recorded, type-checked response
+   shapes, and the request the adapter builds was accepted by the SDK and reached the API, but
+   the account available while writing it had no credit, so every live call came back
+   `400 credit balance is too low` before the model ever ran. What that leaves unproven: whether
+   the model reliably picks the right tool from these schemas, and whether a full six-step turn
+   finishes inside Netlify's function timeout. Step 4 of the hand-run ("pre-flight the model proxy
+   with one throwaway prompt") is where both get answered, and it must be done before recording,
+   not during.
 3. **Whether five site names created via `netlify sites:create --name ...` all land on the exact
    subdomains this project's code and headers assume**, rather than a suffixed fallback name if one
    was already taken.
