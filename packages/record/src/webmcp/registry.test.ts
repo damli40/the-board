@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolRegistry } from './registry';
 import { Ledger } from './ledger';
 import { FakeModelContext } from './fakeModelContext';
-import { NEVER_GRANTED, TOOLS, bareToolName, registeredToolName, type Lifetime } from './tools';
+import { NEVER_GRANTED, TOOLS, LIFETIME_WINDOW, PHASE_ORDER, bareToolName, registeredToolName, type Lifetime } from './tools';
+import type { Phase } from '../model/types';
 
 const LIFETIMES: Lifetime[] = ['filing', 'partyObject', 'boardRead', 'verdictDraft', 'appealA', 'appealB'];
 import { ORIGIN } from '../config/origins';
@@ -217,6 +218,30 @@ describe('ToolRegistry', () => {
       }
       expect(mc.visibleTo(ORIGIN.A).some((n) => mc.visibleTo(ORIGIN.B).includes(n))).toBe(false);
       expect(mc.visibleTo(ORIGIN.seat1).some((n) => mc.visibleTo(ORIGIN.seat2).includes(n))).toBe(false);
+    });
+
+    /**
+     * The trap the per-actor name does NOT close. Names are unique per
+     * document, and two lifetimes can be open at once: boardRead runs REVIEW
+     * through VERDICT, and verdictDraft opens during VERDICT, both for the
+     * seats. Today no tool name appears in both, so nothing collides. Nothing
+     * in the type system says it has to stay that way, and the failure would
+     * look exactly like the bug just fixed: the second registration refused,
+     * one actor quietly holding less than the manifest implies.
+     */
+    it('never declares one capability twice for the same actor in overlapping lifetimes', () => {
+      const seen = new Map<string, Lifetime>();
+      for (const spec of TOOLS) for (const actor of spec.actors) {
+        const key = `${actor}::${spec.name}`;
+        const other = seen.get(key);
+        if (other && other !== spec.lifetime) {
+          const a = LIFETIME_WINDOW[other], b = LIFETIME_WINDOW[spec.lifetime];
+          const idx = (p: Phase) => PHASE_ORDER.indexOf(p);
+          const overlaps = idx(a.startsAt) <= idx(b.endsAfter) && idx(b.startsAt) <= idx(a.endsAfter);
+          expect(overlaps, `${key} is declared in both ${other} and ${spec.lifetime}, whose phase windows overlap — the second registration would be refused as a duplicate name`).toBe(false);
+        }
+        seen.set(key, spec.lifetime);
+      }
     });
 
     it('still shows the bare capability in the manifest, so the display is unchanged', async () => {
