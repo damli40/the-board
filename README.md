@@ -230,12 +230,17 @@ as plainly as the claim.
   [`docs/evidence/hand-run.md`](docs/evidence/hand-run.md) and has not yet been performed.
 - **The link-capture function and the model proxy are demo-shaped, not production-shaped.**
   [`packages/record/netlify/functions/capture.ts`](packages/record/netlify/functions/capture.ts)
-  fetches any user-supplied `https` URL with no allowlist: a server-side request forgery is possible
-  if this were ever exposed to untrusted input at scale.
+  fetches any user-supplied `https` URL with no allowlist. It was hardened on 30 Aug 2026 — manual
+  redirects, a 2MB cap, a 10s timeout, and private and loopback addresses refused — which closes the
+  hole where a public link redirected somewhere internal and walked past the `https`-only check. A
+  hostname that *resolves* to a private address still gets through, so this stays a demo limitation.
   [`packages/panel/netlify/functions/model-proxy.ts`](packages/panel/netlify/functions/model-proxy.ts)
-  is unauthenticated: it does not leak the underlying key, but anyone who finds the endpoint can
-  spend it. Both are accepted limitations of a five-day demo that stores nothing server-side, not
-  defects to fix quietly later. The proxy is also where the panel's own request and response shapes
+  **used to be unauthenticated**: it never leaked the key, but anyone who found the endpoint could
+  spend it. It now requires a room code, refuses everything if `ROOM_CODE` is unset rather than
+  falling open, and rate-limits per container
+  ([`packages/panel/src/proxy/gate.ts`](packages/panel/src/proxy/gate.ts)). The rate limit is not a
+  global ceiling — Netlify runs many containers — so a deployment must also set a spend cap at the
+  provider. Both were accepted limitations of a five-day demo, and one of them is now fixed. The proxy is also where the panel's own request and response shapes
   are translated into a real Anthropic Messages API call and back
   ([`packages/panel/src/proxy/anthropic.ts`](packages/panel/src/proxy/anthropic.ts)); that
   translation is unit-tested against recorded response shapes, but it has never run against a live

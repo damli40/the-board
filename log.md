@@ -3,8 +3,8 @@
 What happened, in order, with the reasoning attached. Newest section last.
 
 **Branch:** `build/the-board` (cut from `main`, which had no remote)
-**State at last entry:** 253 tests passing across 25 files, `tsc --noEmit` clean, both packages build clean
-**Not yet done:** submission artefacts, video, and every step that needs a browser or a public deploy
+**State at last entry:** 293 tests passing across 26 files, `tsc --noEmit` clean, both packages build clean
+**Not yet done:** the rest of the design port, submission artefacts, video, and every step that needs a public deploy
 
 ---
 
@@ -186,6 +186,72 @@ Recorded here so they are not discovered later.
 - The origin partition is real and browser-enforced for the agents shipped here. It does not cover a browser's own built-in agent, which the working group lists as open. The confirm control is safe under either reading for a better reason: it is never registered anywhere.
 - Image citations cannot be machine-checked and are stamped for a human.
 - Cross-origin enforcement is verified by hand, not in the suite.
-- The link capture fetches any user-supplied HTTPS URL with no allowlist, and the model proxy is unauthenticated. Accepted demo limitations, not production code.
+- ~~The model proxy is unauthenticated.~~ **Fixed 30 Aug**: room code required, fails closed without `ROOM_CODE`, per-container rate limit. The real spend ceiling belongs at the provider.
+- The link capture still has no allowlist. Hardened 30 Aug (manual redirects, 2MB cap, 10s timeout, private/loopback refused); a hostname that resolves to a private address still gets through.
 - The injection detector catches a directive naming party B mid-clause but misses the same phrasing naming party A unless a qualifying word precedes it. Documented in the file and pinned by tests.
 - Injection can still corrupt what a seat concludes. It cannot expand what a seat can do, and a corrupted seat is visible the moment it cites something it never assessed.
+
+---
+
+## Session, 30–31 August 2026: security, testability, and making the page readable by an agent
+
+Six commits after the build was already reviewed. Each one started from something that ran fine and returned a plausible answer.
+
+### The model proxy was an open endpoint on the owner's account
+
+`model-proxy` accepted any POST from anyone. `parsePanelRequest` only `JSON.parse`d and cast, so a caller supplied `system` and `messages` and they went straight to the Messages API on `MODEL_API_KEY`. Deployed with a funded key that is a free Opus endpoint, four times over — one per panel site.
+
+It read as safe only because the account had no credit. That is a property of the billing state, not of the code, and "top up the account" was the first item on the handoff. The fix had to land before the top-up, not after.
+
+`packages/panel/src/proxy/gate.ts` now holds three checks, and the comments are careful about which is which:
+
+- `checkRoomCode` is the one that holds. It **fails closed** when `ROOM_CODE` is unset, so a deploy that forgets the variable refuses everything loudly rather than quietly reopening the hole.
+- `checkOrigin` is defence in depth and says so. A missing `Origin` is allowed on purpose: rejecting it would break non-browser clients and stop no attacker, because the caller it cannot stop is the one sending no `Origin` at all.
+- `checkRate` is per container. Netlify runs many, so N containers enforce N × limit. It bounds a runaway client. **It is not a global ceiling and must never be written up as one.** The real ceiling is a spend limit set at the provider, because a stateless function has no consistent view of spend.
+
+Its own test caught a bug in it: the window was anchored to the epoch, because an empty state's `windowStart: 0` meant the first call only counted as fresh once `now >= windowMs`. With a real `Date.now()` that is always true, so it was correct in production and wrong for any small clock — including every test that drives one.
+
+`capture.ts` was the same shape, smaller. It fetched any HTTPS URL with `redirect: 'follow'`, no size cap, no timeout. Following redirects meant the HTTPS-only check only ever applied to the *first* URL: a public link that 302s somewhere internal walked past it. Now manual redirects, a 2MB cap, a 10s timeout, and private and loopback literals refused.
+
+The room code rides the link. The record passes its own `?code=` down to each panel iframe and the panel sends `x-room-code`, so a judge opens one URL and types nothing. A code in a URL lands in history and referrers; accepted for a shared demo code and written down rather than glossed.
+
+### Offline mode, because the demo had never been run
+
+Locally there is no `/.netlify/functions/model-proxy` — Vite does not serve it — so pressing Run had only ever produced a 404. No live provider call has ever succeeded in this project. The running, refused and not-granted states had never been seen outside a test, and were on course to be exercised for the first time on camera.
+
+`?offline=1` scripts **only the decision** a model would make. Everything after it is real: calls go through `getTools({fromOrigins})` to the browser, the browser enforces `exposedTo`, the record executes them, refusals are genuine refusals. If the boundary were broken, this mode would show it broken.
+
+It is opt-in and never inferred from a failed fetch. Falling back automatically would let a misconfigured production deploy serve a scripted demo while looking live, which is the one failure this project must not have.
+
+Arguments come from the record, not the script. Exhibit and fact ids are generated by `loadScenario`, never literals, so the record broadcasts the ids it actually created. Invented ids would be exactly the failure this project cannot ship: a plausible-looking run that proves nothing.
+
+Running it caught a defect in the script itself. It drove `concede` on the one fact the record hands down, which for Advocate A is A's own fact. The record refused correctly, but the panel rendered the browser's generic "invocation failed" text, which reads as a crash rather than as a rule. Whether `concede` is legal depends on which side filed the fact and the script is not told, so it was removed rather than shown wrong.
+
+Verified in Chrome: both advocates ran `open_exhibit` and `file_fact`, counters moved, the ledger filled, and the two goal lines landed 7ms apart — the double-prompt claim demonstrated rather than asserted.
+
+### The design pass, and what was wrong with it
+
+Read `The Board.dc.html` out of the Claude Design project. Its data is fabricated and it said so itself: the repo was never readable on its side. `read_case_file`, `quote_check` and `submit_argument` do not exist in this registry, and it hands `extract_text` to Advocate A when the real registry gives it to seats only — a boundary that does not exist. The visual system and the copy were ported; the data comes from `ToolRegistry.manifest()`.
+
+The manifest is now **one list, not two columns**: every tool in the registry once, marked handed over (filled disc) or not (hollow ring), both marks still from one registry call. The merge is not a restyle. It dissolves the measured layout budget — the GRANTED table needed 180px inside a 157px column, roughly 15% over — because a full-width list gives each name the whole column.
+
+Colour is never the only signal. The two states differ by shape before anything else, and withheld rows keep their screen-reader text.
+
+Dark mode became a token layer, dark by default, light honoured when the machine asks. Fixed while doing it: `body` was never painted. It resolved `rgba(0,0,0,0)` with black text and the dark ground came from a wrapper, so anywhere the wrapper did not reach the browser's own white showed through.
+
+### The visiting agent
+
+Every one of the 14 tools was registered `exposedTo: [one panel origin]`. The mechanism was there and the page had simply never registered anything for a visitor, so an agent driving it from outside held nothing and could only scrape pixels.
+
+`OBSERVER_TOOLS` registers `read_board` **without** `exposedTo`, which §4 already documented as the seam. One call returns the whole page as structured data. Two rules keep the widest registration in the codebase safe, both enforced by tests that fail if either breaks: read-only always, and it appears in the manifest. An unmanifested capability is the exact lie this project exists to prevent, so the visiting agent publishes its own grant and the 14 things it does not hold.
+
+The double was taught the rule too, or it would have been more permissive than the browser again — the same class of gap that once let 253 tests pass over two agents holding nothing.
+
+**Two Chrome facts, found by running it, now in §2:**
+
+- `executeTool`'s input must be a JSON **string**. An object rejects with `Failed to parse input arguments`.
+- `getTools()` called in the page's **own** context returns the origin-scoped tools too, not just the unscoped one. `exposedTo` filters cross-origin frames; it does not hide a document's own tools from script in that document. So "the visiting agent holds only `read_board`" would be an **overclaim** — this is §4's warning made concrete. `confirm` is unaffected for the reason it always was: registered nowhere, to no one.
+
+### Also this session
+
+The NotebookLM research on AI chat and agent interfaces was read and folded into the design brief and the design system (`docs/design/04-notebooklm-synthesis.md`). It corrected two things I had written: the refusal treatment was specified vaguely, and the brief had no accessibility in it at all, which matters because four live transcripts on one page is the hard case. It also carries the argument *against* this product's basic shape, stated at full strength, with where it lands and where it misses.
