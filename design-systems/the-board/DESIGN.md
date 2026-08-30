@@ -130,6 +130,25 @@ sees. Where a seat legitimately holds nothing, say why: *"Seats hold nothing
 during filing. Tools arrive at REVIEW."* Deliberate emptiness reads nothing like
 accidental emptiness.
 
+Suggestions must be **real buttons**, never plain text the reader has to retype.
+And the opening state must say what the agent **cannot** do, not only what it can.
+
+**Accessibility contract.** Four independently updating transcripts on one page is
+the hard case, and these are requirements rather than preferences:
+
+- Each transcript is `role="log"` with its **own unique accessible name**
+  (`aria-labelledby` → a visually hidden heading, "Advocate A chat log"). Four
+  unnamed logs tell a screen reader user nothing about who just spoke.
+- **The streaming stutter.** Tokens streamed into a live region make screen readers
+  announce half-words. Stream into `aria-live="off"`, buffer, and append *completed
+  sentences* to a separate polite region. The eye reads the stream; the ear hears
+  sentences.
+- Never `aria-live="assertive"`.
+- Keyboard navigation cycles within one panel. A run completing in one panel must
+  **never** move focus away from someone typing in another.
+- Auto-scroll only when the viewport is already within 100px of the bottom.
+  Otherwise lock position and offer "jump to latest".
+
 ### Tool calls
 
 One collapsed line per call: name, the one identifying argument, duration,
@@ -146,13 +165,31 @@ banner says "this app broke"; this must say "the system did its job."
 `NOT GRANTED:` means something different again: the agent reached for something
 it was never handed. Give it its own treatment.
 
-Anything that genuinely broke needs a **third** treatment, distinct from both.
+Anything that genuinely broke needs a **third** treatment, distinct from both,
+and it is the only one of the three that carries a **retry** control.
+
+| State | Means | Feel |
+|---|---|---|
+| `NOT GRANTED` | reached for a capability never handed to it | withheld, quiet |
+| `REFUSED` | the browser turned it down at the boundary | withheld family, loud, the product working |
+| failure | the network dropped, the run broke | its own treatment, plus retry |
+
+Two hard rules:
+
+- **Never signal any of these by colour alone.** Every colour-coded state carries a
+  text label or a distinct shape. Accessibility requirement, not a taste call.
+- **Never clear the composer on a refusal.** The typed instruction stays so it can
+  be edited and re-run without retyping.
 
 ### Progress
 
-Stream text as it arrives; hold code blocks until the closing fence. Show an
+Stream text as it arrives; hold code blocks until the closing fence, and buffer
+partial markdown so a half-open bold tag does not flicker mid-stream. Show an
 explicit running state and always expose a stop control. Prefer a named step
 ("Reading exhibit E1") over an indeterminate spinner.
+
+**Never a percentage progress bar.** Fake progress destroys trust the moment it
+stalls. Indeterminate motion plus a label naming the actual work is the pattern.
 
 ⚠️ **One ethical constraint specific to this product.** Showing a machine
 working hard reduces scrutiny of its output by roughly 66% (the labour
@@ -167,6 +204,17 @@ credibility.
 At 1470×746 in Chrome: the GRANTED table needs **180px**, its column provides
 **157px**. Four manifests of two columns each, at 17-character monospace names,
 is roughly **15% over budget**.
+
+**The reading-width constraint, unfixable by styling.** Comfortable line length is
+65–80 characters (~720–768px per column). Four columns at 1470px falls short by
+roughly 4×. The layout is fixed by the product — four origins visible at once — so
+panel prose is scanned rather than read. Write and set the copy for scanning: short
+blocks, structure over narrative. Elsewhere on the page, where width allows, cap
+the measure at `--tb-measure`.
+
+Type settings that follow from this: line-height 1.5–1.6, strict left alignment
+(never justified — justification opens vertical "rivers" of white space that break
+comprehension), generous letter and word spacing.
 
 Every pixel-level fix traded one artefact for another — clipped became
 overlapping became mid-word wrapping — until the type came down to 12px. That

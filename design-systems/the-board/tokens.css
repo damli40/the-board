@@ -29,6 +29,14 @@
   --tb-withheld: oklab(0.704 0.176821 0.072217 / 0.8);
   --tb-withheld-rule: oklab(0.704 0.176821 0.072217 / 0.7);  /* strikethrough */
 
+  /* The THIRD treatment, for things that genuinely broke. Unset on purpose:
+     picking it is a design decision, not a measurement, and it must not be a
+     louder red than `withheld` or the demo's climax reads as a crash.
+     Whatever it becomes, it is the only state carrying a retry control, and
+     like every other state it must ALSO carry a text label or a distinct
+     shape. Nothing here may be signalled by colour alone. */
+  /* --tb-failure: ; */
+
   /* ---- The four actors ----
      Four distinguishable identities is a requirement, not decoration: a viewer
      must tell the frames apart at a glance. Note B's amber currently collides
@@ -79,4 +87,10 @@
        record_assessment · return_with_note · extract_text (page lends) */
   --tb-manifest-min-col: 180px;
   --tb-bullet-gutter: 16px;   /* bullets hang, so a wrap indents under itself */
+
+  /* Comfortable reading width, 65-80 characters. The four-panel row cannot
+     reach this and is not meant to: panel prose is scanned, not read. Apply
+     this cap to full-width prose elsewhere on the page. */
+  --tb-measure: 68ch;
+  --tb-leading-prose: 1.55;   /* 1.5-1.6; below this, lines visually merge */
 }

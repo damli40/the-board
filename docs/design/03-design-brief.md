@@ -118,6 +118,15 @@ are now 12px, which fits but has no headroom.
 The longest strings you must fit: `record_assessment`, `return_with_note`,
 `extract_text (page lends)`.
 
+**A fourth constraint the research adds, which none of the three ways out fixes.**
+Comfortable reading line length is 65–80 characters, roughly 720–768px per column.
+Four columns at 1470px is short of that by about a factor of four, and no font
+choice closes it. The layout is fixed by what the product is: four origins visible
+at once. So panel prose is **scanned, not read** for long stretches, and the copy
+has to be written for that — short blocks, structure over narrative, no paragraph
+a reader has to hold in their head. Decide this deliberately rather than discover
+it on camera.
+
 ---
 
 ## 5. What exists now
@@ -160,11 +169,35 @@ banner says "this app broke"; this must say "the system did its job."
 Same for `NOT GRANTED:` lines, which mean something different again: the agent
 reached for something it was never handed.
 
+**Three states, three treatments** (from the research, doc 04 §2.3). This brief
+originally said "distinct from error" without saying how. The shape is:
+
+| State | Means | Treatment |
+|---|---|---|
+| `NOT GRANTED` | the agent reached for a capability it was never handed | withheld family, quiet, never alarming |
+| `REFUSED` | the browser turned the call down at the boundary | same family, loud, this is the product working |
+| genuine failure | the network dropped, the run broke | **a third treatment**, distinct from both, carrying a retry control |
+
+Two hard rules attach to all three:
+
+- **Never signal state by colour alone.** Every colour-coded state carries a text
+  label or a distinct shape. This is an accessibility requirement, not a taste
+  call, and the current strike-through plus a screen-reader-only label already
+  half-satisfies it.
+- **Never clear the composer on a refusal.** The typed instruction stays intact so
+  it can be edited and re-run without retyping.
+
 ### 5.4 Panel alignment
 
 The seat panels sit ~120px below the advocate panels because the seat manifests
 are taller. Equal-height manifests in a row, or a capped list with internal
 scroll.
+
+**Do not convert the transcript to chat bubbles while you are in here.** Left/right
+speech bubbles in a narrow column create a blind spot for anyone with partial or
+reduced peripheral vision: the eye tracks the left-aligned side and never registers
+the right. Flat full-width blocks with an explicit text author tag are the
+prescribed pattern, and they are what the build already does (doc 04 §1).
 
 ### 5.5 Worth doing, not yet approved
 
@@ -174,6 +207,27 @@ scroll.
 - **Tool calls land as flat transcript lines.** Beyond two or three calls this is
   an unreadable wall at exactly the moment a viewer needs to follow. One line per
   call — name, key argument, outcome — failure loud, success quiet.
+
+### 5.6 Live regions and focus (correctness, not styling)
+
+Not one of the four approved items. Added after reading the research, because the
+brief shipped with no accessibility in it and four independently updating
+transcripts on one page is the exact configuration the sources warn about. Full
+detail and citations in doc 04 §2.1, §2.2, §2.5.
+
+- Each panel's transcript gets `role="log"` and its **own unique accessible name**
+  via `aria-labelledby` on a visually hidden heading. Four unnamed logs on a page
+  tell a screen reader user nothing about which party just spoke.
+- **The streaming stutter.** Tokens streamed straight into a live region make a
+  screen reader announce half-words. Stream into `aria-live="off"`, buffer, and
+  append **completed sentences** to a separate polite region. The eye reads the
+  stream; the ear hears whole sentences.
+- Never `aria-live="assertive"`.
+- **No cross-panel focus stealing.** A response completing in Advocate A must not
+  move the cursor away from someone typing in Advocate B. Keyboard navigation
+  cycles within one panel.
+- Auto-scroll only when the viewport is already within 100px of the bottom. If the
+  reader has scrolled up, lock position and offer "jump to latest".
 
 ---
 
@@ -215,6 +269,11 @@ Inventory:
 - [ ] No copy references the origin story
 - [ ] A viewer who has never seen this can say what each agent may and may not do,
       within fifteen seconds of the page loading
+- [ ] No state is signalled by colour alone; every one carries text or a shape
+- [ ] A genuine failure looks like neither a refusal nor a withheld capability
+- [ ] A refusal leaves the typed instruction in the composer
+- [ ] Each transcript is a named `log`; a screen reader says which party spoke
+- [ ] Streaming into one panel never moves focus out of another
 
 ---
 
