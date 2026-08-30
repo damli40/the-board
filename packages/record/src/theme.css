@@ -1,0 +1,137 @@
+/*
+ * The Board — theme tokens.
+ *
+ * Ported from the Claude Design pass ("The Board.dc.html", Modernist base),
+ * which was authored LIGHT: light chrome, dark agent panels. Dami asked for
+ * dark mode, so every value that design hard-coded is a token here and the
+ * palette is defined twice.
+ *
+ * DARK IS THE DEFAULT, for two reasons. The brand ground is #191919 (it is
+ * the logo's own field), and the app shipped dark, so defaulting light would
+ * change the product's face for anyone who never touches a toggle. Light is
+ * available and honoured when the viewer's machine asks for it.
+ *
+ * `color-scheme` is set alongside each palette so form controls, scrollbars
+ * and the canvas the browser paints behind the page all follow. Without it a
+ * dark page still gets light scrollbars.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* Ground and ink */
+  --color-bg: #191919;
+  --color-surface: #202020;
+  --color-text: #f3f2f2;
+  --color-divider: #3a3a3a;
+
+  /* Neutrals, dark-appropriate: low numbers sit CLOSE to the ground, high
+     numbers approach the ink. Same direction as the light ramp below, so a
+     component written against `--color-neutral-700` reads as "quiet text" in
+     both palettes rather than flipping meaning. */
+  --color-neutral-200: #242424;
+  --color-neutral-300: #2e2e2e;
+  --color-neutral-400: #4a4a4a;
+  --color-neutral-500: #6b6b6b;
+  --color-neutral-600: #8a8a8a;
+  --color-neutral-700: #a6a6a6;
+  --color-neutral-800: #c9c9c9;
+
+  /* Brand. #eea33d is sampled from the logo. */
+  --color-accent: #eea33d;
+  --color-accent-hover: #d98f2b;
+  --color-accent-ink: #191919;   /* text ON the accent */
+
+  /* The design used #8a4a06 for "never handed to anyone" and for links — a
+     dark amber that is legible on light ground and invisible on dark. It is a
+     token for exactly that reason. */
+  --color-warn-ink: #eea33d;
+
+  /* Agent panels. Fixed in the design at #191919 on light ground; in dark
+     they must separate from the page or the four frames disappear into it. */
+  --color-panel: #101010;
+  --color-panel-ink: #f3f2f2;
+  --color-panel-input: #0a0a0a;
+  --color-panel-rule: rgba(243, 242, 242, 0.18);
+  --color-panel-dim: rgba(243, 242, 242, 0.6);
+  --color-panel-faint: rgba(243, 242, 242, 0.45);
+
+  --font-heading: Archivo, system-ui, sans-serif;
+  --font-body: Archivo, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Measured, not chosen. See design-systems/the-board/tokens.css. */
+  --tb-measure: 68ch;
+  --tb-leading-prose: 1.55;
+}
+
+/* Light: the palette the design was actually drawn in. Applies when the
+   viewer's machine asks for light and they have not pinned a theme. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    color-scheme: light;
+
+    --color-bg: #f3f2f2;
+    --color-surface: #e9e7e5;
+    --color-text: #191919;
+    --color-divider: #191919;
+
+    --color-neutral-200: #e9e7e5;
+    --color-neutral-300: #d6d3d0;
+    --color-neutral-400: #b3aeaa;
+    --color-neutral-500: #8d8781;
+    --color-neutral-600: #6f6963;
+    --color-neutral-700: #56514c;
+    --color-neutral-800: #332f2c;
+
+    --color-warn-ink: #8a4a06;
+
+    /* The panels stay dark in light mode. That is the design's own idea and
+       it is a good one: the four frames read as machinery embedded in a
+       document, which is what they are. */
+    --color-panel: #191919;
+  }
+}
+
+/* An explicit choice always wins over the machine's preference. */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --color-bg: #f3f2f2;
+  --color-surface: #e9e7e5;
+  --color-text: #191919;
+  --color-divider: #191919;
+
+  --color-neutral-200: #e9e7e5;
+  --color-neutral-300: #d6d3d0;
+  --color-neutral-400: #b3aeaa;
+  --color-neutral-500: #8d8781;
+  --color-neutral-600: #6f6963;
+  --color-neutral-700: #56514c;
+  --color-neutral-800: #332f2c;
+
+  --color-warn-ink: #8a4a06;
+  --color-panel: #191919;
+}
+
+/*
+ * Paint the body.
+ *
+ * The previous build never did: `body` resolved to rgba(0,0,0,0) with black
+ * text, and the dark ground came from a wrapper element. Anywhere the wrapper
+ * did not reach — below short content, and the overscroll area — the browser's
+ * own white showed through. That is the "add dark mode" bug.
+ */
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
