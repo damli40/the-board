@@ -4,7 +4,9 @@ export interface RegisteredTool {
   name: string;
   description: string;
   annotations: { readOnlyHint: boolean; untrustedContentHint: boolean };
-  exposedTo: string[];
+  /** Absent means registered WITHOUT `exposedTo` — reachable by a visiting
+   *  agent, and by no cross-origin frame. See OBSERVER_TOOLS in ./tools. */
+  exposedTo: string[] | undefined;
   execute: (args: any) => Promise<unknown>;
   live: boolean;
 }
@@ -16,7 +18,7 @@ export interface RegisteredTool {
 export class FakeModelContext {
   tools: RegisteredTool[] = [];
 
-  async registerTool(def: any, opts: { signal: AbortSignal; exposedTo: string[] }): Promise<void> {
+  async registerTool(def: any, opts: { signal: AbortSignal; exposedTo?: string[] }): Promise<void> {
     // Chrome rejects a name already held by a LIVE registration:
     //   "If tool map[tool name] exists, then return a promise rejected with an
     //    InvalidStateError DOMException."
@@ -55,7 +57,14 @@ export class FakeModelContext {
    */
   visibleTo(origin: string): string[] {
     return this.tools
-      .filter((t) => t.live && t.exposedTo.includes(origin))
+      // A tool with NO `exposedTo` is invisible here on purpose. CLAUDE.md
+      // sec. 2: a cross-origin `getTools({fromOrigins})` needs the owner to
+      // have registered with a MATCHING `exposedTo`; a registration that
+      // names no origin matches none of them. Modelling that is what stops
+      // this double being more permissive than the browser again — the same
+      // class of gap that once let 253 tests pass over two agents holding
+      // nothing at all.
+      .filter((t) => t.live && (t.exposedTo?.includes(origin) ?? false))
       .map((t) => t.name)
       .sort();
   }
@@ -67,5 +76,21 @@ export class FakeModelContext {
    */
   capabilitiesVisibleTo(origin: string): string[] {
     return this.visibleTo(origin).map(bareToolName).sort();
+  }
+
+  /**
+   * What a VISITING agent sees — Chrome's built-in one, or an agent driving
+   * the page from outside. Per CLAUDE.md sec. 4, a top-level document with a
+   * missing `exposedTo` exposes that tool to the built-in agent, so this is
+   * exactly the set registered without an origin scope.
+   *
+   * ⚠️ Modelled from the explainer, not verified in Chrome. The hand-run is
+   * what would confirm it.
+   */
+  visibleToBuiltInAgent(): string[] {
+    return this.tools
+      .filter((t) => t.live && t.exposedTo === undefined)
+      .map((t) => t.name)
+      .sort();
   }
 }

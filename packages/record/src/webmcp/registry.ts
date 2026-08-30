@@ -1,9 +1,19 @@
 import { ORIGIN, type Actor } from '../model/types';
-import { ALL_TOOL_NAMES, TOOLS, registeredToolName, type Lifetime } from './tools';
+import {
+  ALL_TOOL_NAMES,
+  OBSERVER_ORIGIN,
+  OBSERVER_TOOLS,
+  TOOLS,
+  registeredToolName,
+  type Lifetime,
+} from './tools';
 import type { Ledger, ToolRun } from './ledger';
 
 export interface ModelContextLike {
-  registerTool(def: any, opts: { signal: AbortSignal; exposedTo: string[] }): Promise<void>;
+  // `exposedTo` is OPTIONAL, and its absence is meaningful rather than a
+  // default: it is the one registration a visiting agent can reach. See
+  // OBSERVER_TOOLS in ./tools.
+  registerTool(def: any, opts: { signal: AbortSignal; exposedTo?: string[] }): Promise<void>;
 }
 
 export interface Grant { origin: string; tool: string; lends: boolean }
@@ -38,6 +48,12 @@ export class ToolRegistry {
    */
   private grants = new Map<Lifetime, Grant[]>();
   private failures = new Map<Lifetime, RegistrationFailure[]>();
+
+  /** The visiting agent's grant. Opened once, never closed — see openObserver. */
+  private observerOpen = false;
+  private observerController = new AbortController();
+  private observerGrants: Grant[] = [];
+  private observerFailures: RegistrationFailure[] = [];
 
   constructor(
     private mc: ModelContextLike,
@@ -158,6 +174,65 @@ export class ToolRegistry {
    * which overstated what the code can guarantee, and the README's weaker
    * phrasing was the accurate one.)
    */
+  /**
+   * Registers the read-only observer set WITHOUT `exposedTo`, which is what
+   * makes it reachable by a visiting agent rather than by one of the four
+   * panel origins.
+   *
+   * Deliberately not a phase lifetime. It opens once at boot and is never
+   * closed, because what a visiting agent may read does not change with the
+   * phase — it may always read, and it may never write.
+   *
+   * `read` is passed in rather than built here so the registry stays ignorant
+   * of the case model. It is called at CALL time, never captured, so the
+   * agent always reads current state and never a snapshot taken at boot.
+   */
+  async openObserver(read: () => unknown): Promise<void> {
+    if (this.observerOpen) return;
+    this.observerOpen = true;
+
+    for (const spec of OBSERVER_TOOLS) {
+      try {
+        await this.mc.registerTool({
+          name: spec.name,
+          title: spec.title,
+          description: spec.description,
+          inputSchema: spec.inputSchema,
+          // readOnlyHint is not decoration here. A missing `exposedTo` is the
+          // widest registration this codebase makes, and read-only is the
+          // property that makes it safe. registry.test.ts enforces it.
+          annotations: { readOnlyHint: true, untrustedContentHint: true },
+          // Ledgered like every other call: a visiting agent reading the board
+          // is part of the record, not invisible to it.
+          execute: this.ledger.wrap(OBSERVER_ORIGIN, spec.name, async () => read())
+        }, { signal: this.observerController.signal });
+        this.observerGrants.push({ origin: OBSERVER_ORIGIN, tool: spec.name, lends: false });
+      } catch (err) {
+        this.observerFailures.push({
+          origin: OBSERVER_ORIGIN, tool: spec.name, lifetime: 'observer' as Lifetime,
+          reason: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
+  }
+
+  /**
+   * The visiting agent's manifest, built the same way every other actor's is:
+   * what actually registered, and everything in the catalogue that did not.
+   */
+  observerManifest(): { label: string; origin: string; granted: { tool: string; used: number; lends: boolean }[]; notGranted: string[] } {
+    const counts = this.ledger.countsFor(OBSERVER_ORIGIN);
+    const granted = this.observerGrants.map((g) => ({ tool: g.tool, used: counts[g.tool] ?? 0, lends: g.lends }));
+    const names = new Set(granted.map((g) => g.tool));
+    return {
+      label: 'visiting agent',
+      origin: OBSERVER_ORIGIN,
+      granted,
+      // Every tool the four panels can hold, none of which this one can.
+      notGranted: ALL_TOOL_NAMES.filter((n) => !names.has(n))
+    };
+  }
+
   manifest(actor: Actor): Manifest {
     const origin = ORIGIN[actor];
     const counts = this.ledger.countsFor(origin);

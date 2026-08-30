@@ -230,3 +230,55 @@ export function bareToolName(registered: string): string {
   }
   return registered;
 }
+
+// ---------------------------------------------------------------------------
+// The visiting agent.
+//
+// Everything above is registered WITH `exposedTo`, which scopes it to one
+// panel origin and is what the browser enforces. A visiting agent — Chrome's
+// built-in one, or an agent driving this page from outside — is not an origin
+// in that list and therefore holds nothing at all. Today it cannot read the
+// phase, the manifest or the ledger without scraping pixels.
+//
+// CLAUDE.md sec. 4 records the seam: "a top-level document with a *missing*
+// `exposedTo` exposes tools to the built-in agent". So the way to hand a
+// visiting agent a capability is to register WITHOUT `exposedTo`, and that is
+// exactly what `ToolRegistry.openObserver` does.
+//
+// TWO RULES, both load-bearing:
+//
+// 1. READ-ONLY, ALWAYS. A missing `exposedTo` is the widest registration this
+//    codebase can make. Anything that mutates the record must never be
+//    registered this way, and `registry.test.ts` fails if one ever is.
+//
+// 2. IT APPEARS IN THE MANIFEST. An unmanifested capability is precisely the
+//    lie this project exists to prevent. The visiting agent gets its own
+//    manifest row like every other actor: what it holds, and the fourteen
+//    things it does not.
+//
+// What this is NOT: a claim that the origin partition covers the built-in
+// agent. CLAUDE.md sec. 4 is explicit that it does not, and adding this must
+// not be read as extending it. `confirm` is safe under either reading for the
+// same reason it always was — it is never registered anywhere, to anyone.
+export const OBSERVER_LABEL = 'visiting agent';
+
+/** Not a real origin. A missing `exposedTo` is the absence of an origin scope. */
+export const OBSERVER_ORIGIN = 'no origin (registered without exposedTo)';
+
+export const OBSERVER_TOOLS: {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: unknown;
+}[] = [
+  {
+    name: 'read_board',
+    title: 'Read the whole board',
+    description:
+      'Returns the entire state of this page as structured data: the phase, every agent with its ' +
+      'origin and what it was and was not handed, every registration the browser refused, the ' +
+      'ledger of calls made so far, the case material, and any draft verdict. Read-only. Calling ' +
+      'this changes nothing and is itself recorded in the ledger.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false }
+  }
+];

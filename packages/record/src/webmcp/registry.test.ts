@@ -54,7 +54,7 @@ describe('ToolRegistry', () => {
 
   it('routes every execution through the ledger', async () => {
     await registry.open('boardRead');
-    const tool = mc.tools.find((t) => bareToolName(t.name) === 'open_exhibit' && t.exposedTo.includes(ORIGIN.seat2))!;
+    const tool = mc.tools.find((t) => bareToolName(t.name) === 'open_exhibit' && t.exposedTo?.includes(ORIGIN.seat2))!;
     await tool.execute({ exhibitId: 'E1' });
     expect(ledger.countsFor(ORIGIN.seat2)).toEqual({ open_exhibit: 1 });
   });
@@ -68,7 +68,7 @@ describe('ToolRegistry', () => {
 
   it('shows live call counts in the manifest', async () => {
     await registry.open('boardRead');
-    const tool = mc.tools.find((t) => bareToolName(t.name) === 'record_assessment' && t.exposedTo.includes(ORIGIN.seat1))!;
+    const tool = mc.tools.find((t) => bareToolName(t.name) === 'record_assessment' && t.exposedTo?.includes(ORIGIN.seat1))!;
     await tool.execute({});
     expect(registry.manifest('seat1').granted.find((g) => g.tool === 'record_assessment')!.used).toBe(1);
   });
@@ -216,7 +216,7 @@ describe('ToolRegistry', () => {
     it("never lets one actor's registered name reach another actor", async () => {
       for (const lifetime of LIFETIMES) await registry.open(lifetime);
       const seen = new Map<string, string>();
-      for (const t of mc.tools) for (const o of t.exposedTo) {
+      for (const t of mc.tools) for (const o of t.exposedTo ?? []) {
         // A registered name is exposed to exactly one origin, so B has no name
         // it could pass to reach A's tool.
         expect(seen.get(t.name) ?? o).toBe(o);
@@ -367,4 +367,87 @@ describe('ToolRegistry', () => {
     });
   });
 
+  describe('the visiting agent', () => {
+    // An agent driving this page from outside — Chrome's built-in one, or me —
+    // is not one of the four panel origins, so `exposedTo` hands it nothing.
+    // OBSERVER_TOOLS is the deliberate exception, and these are the rules that
+    // keep the exception safe.
+
+    it('holds nothing at all until the observer set is opened', async () => {
+      for (const lifetime of LIFETIMES) await registry.open(lifetime);
+      expect(mc.visibleToBuiltInAgent()).toEqual([]);
+    });
+
+    it('can read the board once the observer set is opened', async () => {
+      await registry.openObserver(() => ({ phase: 'FILING' }));
+      expect(mc.visibleToBuiltInAgent()).toEqual(['read_board']);
+    });
+
+    it('🚨 NEVER registers anything that can change the record', async () => {
+      // The load-bearing test. A missing `exposedTo` is the WIDEST registration
+      // this codebase makes, and read-only is the only thing making it safe. If
+      // someone ever adds a mutating tool to OBSERVER_TOOLS, or drops
+      // `exposedTo` from a phase tool, this fails.
+      await registry.openObserver(() => ({}));
+      for (const lifetime of LIFETIMES) await registry.open(lifetime);
+
+      const unscoped = mc.tools.filter((t) => t.exposedTo === undefined);
+      expect(unscoped.length).toBeGreaterThan(0);
+      for (const t of unscoped) {
+        expect(t.annotations.readOnlyHint, `${t.name} is reachable by any visiting agent`).toBe(true);
+      }
+    });
+
+    it('🚨 every phase tool is still scoped to exactly one origin', async () => {
+      // The other half: the observer set must not have loosened anything that
+      // was already scoped.
+      await registry.openObserver(() => ({}));
+      for (const lifetime of LIFETIMES) await registry.open(lifetime);
+
+      const phaseTools = mc.tools.filter((t) => t.name !== 'read_board');
+      expect(phaseTools.length).toBeGreaterThan(0);
+      for (const t of phaseTools) {
+        expect(t.exposedTo, `${t.name} lost its origin scope`).toBeDefined();
+        expect(t.exposedTo).toHaveLength(1);
+      }
+    });
+
+    it('is invisible to all four panels, which is what keeps the partition true', async () => {
+      await registry.openObserver(() => ({}));
+      for (const lifetime of LIFETIMES) await registry.open(lifetime);
+      for (const actor of ['A', 'B', 'seat1', 'seat2'] as const) {
+        expect(mc.capabilitiesVisibleTo(ORIGIN[actor])).not.toContain('read_board');
+      }
+    });
+
+    it('reads CURRENT state, never a snapshot captured at boot', async () => {
+      // `read` is called at call time. Capturing it at registration would make
+      // the agent describe a board that stopped existing four phases ago — a
+      // confident, plausible, wrong answer, which is the failure mode this
+      // project cares most about.
+      let phase = 'FILING';
+      await registry.openObserver(() => ({ phase }));
+      const tool = mc.tools.find((t) => t.name === 'read_board')!;
+      expect(await tool.execute({})).toMatchObject({ phase: 'FILING' });
+      phase = 'VERDICT';
+      expect(await tool.execute({})).toMatchObject({ phase: 'VERDICT' });
+    });
+
+    it('publishes its own grant, so the capability is never unmanifested', async () => {
+      await registry.openObserver(() => ({}));
+      const m = registry.observerManifest();
+      expect(m.granted.map((g) => g.tool)).toEqual(['read_board']);
+      expect(m.notGranted).toContain('confirm');
+      expect(m.notGranted).toContain('file_exhibit');
+      expect(m.notGranted).toContain('record_assessment');
+    });
+
+    it('counts its own reads in the ledger', async () => {
+      await registry.openObserver(() => ({}));
+      const tool = mc.tools.find((t) => t.name === 'read_board')!;
+      await tool.execute({});
+      await tool.execute({});
+      expect(registry.observerManifest().granted[0].used).toBe(2);
+    });
+  });
 });

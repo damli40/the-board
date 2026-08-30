@@ -181,6 +181,32 @@ export function App() {
   useEffect(() => {
     if (!status.available || scenarioLoaded.current) return;
     scenarioLoaded.current = true;
+    // The visiting agent's grant. Opened once at boot, never closed, because
+    // what an outside agent may read does not change with the phase: it may
+    // always read, and it may never write. Registered WITHOUT `exposedTo`,
+    // which is the documented seam (CLAUDE.md sec. 4) that makes it reachable
+    // by an agent that is not one of the four panel origins.
+    //
+    // The snapshot is built HERE, at call time, because this is the only
+    // scope holding every store. Passing a function rather than a value is
+    // deliberate: an agent must read the board as it is now, never a picture
+    // of it taken at boot.
+    void engine.registry.openObserver(() => ({
+      phase: engine.phaseMachine.phase,
+      agents: ACTORS.map((a) => {
+        const m = engine.registry.manifest(a);
+        return { actor: a, origin: m.origin, granted: m.granted, notGranted: m.notGranted };
+      }),
+      visitingAgent: engine.registry.observerManifest(),
+      browserRefusedRegistrations: engine.registry.registrationFailures(),
+      ledger: engine.ledger.all(),
+      exhibits: engine.exhibits.all().map((e) => ({ id: e.id, name: e.name, kind: e.kind, side: e.side })),
+      facts: engine.facts.all(),
+      // Said in the data, not only in the UI, so an agent reading this cannot
+      // conclude that some tool somewhere could sign the verdict.
+      confirm: 'never registered to any agent, in any phase. A person presses it.'
+    }));
+
     void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then(() => {
       refresh();
       // Panels mount with the iframes, so give them a beat to install their
