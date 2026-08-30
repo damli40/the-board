@@ -118,6 +118,27 @@ function getRealModelContext(): ModelContextLike | undefined {
   return doc.modelContext ?? nav.modelContext;
 }
 
+/**
+ * Passes the record's own `?code=` down to each panel iframe.
+ *
+ * The panel needs a room code to call its model proxy (panel/src/proxy/gate.ts).
+ * Threading it through the iframe url means a judge opens ONE link —
+ * `.../?code=XXXX` — and every panel inherits it, with no field to type and no
+ * throwaway UI to design while the frontend is being redesigned.
+ *
+ * Returns '' when there is no code, so the url is byte-identical to what it was
+ * before this existed. That matters: the frame assertions match on these urls,
+ * and a stray `&code=` would change them for every run that never had one.
+ */
+function roomCodeParam(): string {
+  try {
+    const code = new URLSearchParams(globalThis.location?.search ?? '').get('code');
+    return code ? `&code=${encodeURIComponent(code)}` : '';
+  } catch {
+    return '';
+  }
+}
+
 export function App() {
   const status = webmcpStatus();
   // Hooks run unconditionally regardless of `status` — a no-op stand-in
@@ -308,7 +329,7 @@ export function App() {
               <iframe
                 ref={(el) => { iframeRefs.current[actor] = el; }}
                 data-testid={`frame-${actor}`}
-                src={`${ORIGIN[actor]}/?actor=${actor}`}
+                src={`${ORIGIN[actor]}/?actor=${actor}${roomCodeParam()}`}
                 allow="tools"
                 title={`${ACTOR_LABEL[actor]} panel`}
                 className={`h-64 rounded border ${ACTOR_ACCENT[actor].border} bg-black`}

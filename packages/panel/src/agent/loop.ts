@@ -20,6 +20,7 @@
 import { PARENT_ORIGIN } from '../../../record/src/config/origins';
 import { sanitizeCounterpartyText } from './sanitize';
 import { bareToolName } from '../../../record/src/webmcp/tools';
+import { ROOM_CODE_HEADER } from '../proxy/gate';
 
 declare global {
   namespace WebMCP {
@@ -87,6 +88,44 @@ interface ProxyPlan {
  * ever rendered. Checking `res.ok` here turns that into an ordinary,
  * catchable `Error` with a message that actually says what happened.
  */
+/**
+ * The room code this panel presents to its own model proxy.
+ *
+ * It arrives on the panel's iframe url, because the record composes that url
+ * (record/src/App.tsx) and can pass down whatever code it was opened with.
+ * So a judge opens ONE link carrying the code and nothing has to be typed
+ * anywhere — which also means no throwaway input field to design while the
+ * frontend is being redesigned.
+ *
+ * Cached in sessionStorage so a panel that reloads without the query string
+ * still has it. Tab-scoped, cleared when the tab closes.
+ *
+ * ⚠️ A code in a url lands in history and in any referrer. For a shared demo
+ * room code that is the accepted trade; it is not a per-person secret and it
+ * is not a credential for anything but this one endpoint.
+ *
+ * Returns an empty object rather than an empty header when there is no code,
+ * so the proxy answers "room code required" instead of "room code rejected"
+ * and the failure says which of the two actually happened.
+ */
+function roomCodeHeader(): Record<string, string> {
+  try {
+    const fromUrl = new URLSearchParams(globalThis.location?.search ?? '').get('code');
+    if (fromUrl) {
+      globalThis.sessionStorage?.setItem('board:roomCode', fromUrl);
+      return { [ROOM_CODE_HEADER]: fromUrl };
+    }
+    const stored = globalThis.sessionStorage?.getItem('board:roomCode');
+    return stored ? { [ROOM_CODE_HEADER]: stored } : {};
+  } catch {
+    // sessionStorage throws outright in some embedded contexts. A panel that
+    // cannot read it should still be able to run from the url alone, and a
+    // panel that has neither should fail at the proxy with a clear 401 rather
+    // than here with an exception nothing renders.
+    return {};
+  }
+}
+
 async function askModel(
   system: string,
   messages: ProxyMessage[],
@@ -94,7 +133,7 @@ async function askModel(
 ): Promise<ProxyPlan> {
   const res = await fetch('/.netlify/functions/model-proxy', {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...roomCodeHeader() },
     body: JSON.stringify({ system, messages, tools }),
   });
   if (!res.ok) {
