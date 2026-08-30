@@ -137,7 +137,7 @@ export function App() {
         <input
           value={manualGoal}
           onChange={(e) => setManualGoal(e.target.value)}
-          placeholder="(standalone testing only — the demo drives this panel from the double prompt)"
+          placeholder="run this panel on its own"
           className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-neutral-100 placeholder:text-neutral-700"
         />
         <button type="submit" disabled={busy} className="border border-neutral-600 rounded px-2 py-1 disabled:opacity-40">

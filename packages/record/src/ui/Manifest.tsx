@@ -19,14 +19,18 @@ function byName<T>(items: T[], name: (t: T) => string): T[] {
   return [...items].sort((a, b) => name(a).localeCompare(name(b)));
 }
 
-/** Strikes through a withheld tool's name, literally, per the storyboard mockup. */
+/**
+ * Strikes through a withheld tool's name, per the storyboard mockup.
+ *
+ * This used to render ONE SPAN PER CHARACTER with an absolutely positioned
+ * border. Inline spans let the browser break a line between any two of them,
+ * so `record_assessment` wrapped as `record_asse` / `ssment` and orphaned the
+ * bullet on its own line, shifting every row below it. Observed in Chrome on
+ * 30 Aug 2026. A real text-decoration draws the same line and keeps the name a
+ * word.
+ */
 function strike(name: string) {
-  return [...name].map((ch, i) => (
-    <span key={i} className="relative">
-      {ch}
-      <span aria-hidden className="absolute inset-x-0 top-1/2 border-t border-red-400/70" />
-    </span>
-  ));
+  return <span className="line-through decoration-red-400/70 break-words">{name}</span>;
 }
 
 export function Manifest({ manifest }: { manifest: ManifestData }) {
@@ -37,26 +41,33 @@ export function Manifest({ manifest }: { manifest: ManifestData }) {
   return (
     <section
       data-testid={`manifest-${manifest.actor}`}
-      className={`font-mono text-sm bg-neutral-950 border ${accent.border} rounded-md overflow-hidden`}
+      className={`font-mono text-xs bg-neutral-950 border ${accent.border} rounded-md overflow-hidden`}
     >
       <header className={`flex items-baseline justify-between px-3 py-2 border-b ${accent.border} ${accent.bg}`}>
-        <span className={`uppercase tracking-widest font-semibold ${accent.text}`}>{ACTOR_LABEL[manifest.actor]}</span>
+        <span className={`text-sm uppercase tracking-widest font-semibold ${accent.text}`}>{ACTOR_LABEL[manifest.actor]}</span>
         <span className="text-neutral-500 text-xs">⌁ frame: {manifest.origin}</span>
       </header>
 
-      <div className="grid grid-cols-2 divide-x divide-neutral-800">
+      {/*
+        Not an even split. NOT GRANTED carries the longest names in the
+        catalogue (`record_assessment`, `return_with_note`); GRANTED carries
+        short ones plus a narrow count. At an even split the longest name
+        needed 155.7px in a 150px column and wrapped, orphaning its bullet and
+        shifting every row below it (measured in Chrome, 30 Aug 2026).
+      */}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-neutral-800">
         <div className="p-2">
           <h3 className="text-neutral-400 text-xs uppercase tracking-wider mb-1">Granted</h3>
           <table className="w-full border-collapse">
             <tbody>
               {granted.map((g) => (
                 <tr key={g.tool} data-testid={`row-${g.tool}`} className="align-top">
-                  <td className="pr-2 py-0.5 text-neutral-200">
-                    <span className={`inline-block mr-1 ${accent.text}`} aria-hidden>●</span>
+                  <td className="relative pl-4 pr-1 py-0.5 text-neutral-200 break-words">
+                    <span className={`absolute left-0 top-0.5 ${accent.text}`} aria-hidden>●</span>
                     {g.tool}
                     {g.lends && <span className="text-neutral-500"> (page lends)</span>}
                   </td>
-                  <td data-testid={`used-${g.tool}`} className="text-right tabular-nums text-neutral-500 py-0.5">
+                  <td data-testid={`used-${g.tool}`} className="pl-2 text-right tabular-nums text-neutral-500 py-0.5">
                     {g.used}
                   </td>
                 </tr>
@@ -74,11 +85,20 @@ export function Manifest({ manifest }: { manifest: ManifestData }) {
             <tbody>
               {notGranted.map((t) => (
                 <tr key={t} data-testid={`notgranted-${t}`} className="align-top opacity-80">
-                  <td className="pr-2 py-0.5 text-neutral-500">
-                    <span className="inline-block mr-1" aria-hidden>○</span>
+                  <td className="relative pl-4 pr-1 py-0.5 text-neutral-500">
+                    <span className="absolute left-0 top-0.5" aria-hidden>○</span>
                     {strike(t)}
+                    {/*
+                      This row used to carry a visible "NOT GRANTED" badge, which
+                      said the same thing the column heading and the strikethrough
+                      already said — and, being whitespace-nowrap inside an
+                      overflow-hidden section, was clipped to a red "NO" on every
+                      row of the project's signature image. The badge is gone; the
+                      words stay for screen readers, where the strikethrough and
+                      the ○ carry nothing.
+                    */}
+                    <span className="sr-only"> NOT GRANTED</span>
                   </td>
-                  <td className="text-right text-red-400/70 text-xs py-0.5 whitespace-nowrap">NOT GRANTED</td>
                 </tr>
               ))}
             </tbody>
