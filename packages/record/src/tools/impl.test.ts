@@ -5,7 +5,10 @@ import { FactStore } from '../model/facts';
 import { Receipts, AssessmentStore } from '../model/receipts';
 import { DisputeStore } from '../model/disputes';
 import { VerdictStore } from '../model/verdict';
-import type { PhaseMachine } from '../webmcp/phases';
+import { PhaseMachine } from '../webmcp/phases';
+import { ToolRegistry } from '../webmcp/registry';
+import { Ledger } from '../webmcp/ledger';
+import { FakeModelContext } from '../webmcp/fakeModelContext';
 import type { Phase, Side } from '../model/types';
 import { ORIGIN } from '../config/origins';
 import { TOOL_OUTPUT_BUDGET } from '../shared/truncate';
@@ -364,5 +367,133 @@ describe('createToolImpl', () => {
       expect(ctx.spentAppeals).toEqual(['A']);
       expect(ctx.enteredPhases).toEqual(['REVIEW']);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FINAL REVIEW, BLOCKER 3: spending an appeal mutates state AFTER the last
+// render.
+//
+// `spend_appeal` defers `spendAppeal` + `enter('REVIEW')` into a zero-delay
+// timeout, on purpose: without the deferral it aborts the very registration
+// it is executing under, and on Chrome 152 and earlier that cancels the
+// in-flight execution. The cost is that the only thing which re-renders on a
+// panel-driven mutation is the ledger subscription, and that fires in a
+// MICROTASK, before the timer. React schedules its render ahead of a clamped
+// zero timeout, so the hand, the manifest and the phase ribbon all paint
+// while the appeal is still held and the phase is still VERDICT, and the
+// abort then lands with nobody listening. At VERDICT there is no next-phase
+// button to force another render, so the screen stays wrong.
+//
+// The fix keeps the deferral and makes the deferred work observable, via
+// `ToolImplDeps.onStateChange`. These tests use the REAL PhaseMachine, the
+// REAL ToolRegistry and the fake model context, so "the phase" and "the hand"
+// below are the real ones, not a spy's record of intent.
+// ---------------------------------------------------------------------------
+describe('spend_appeal: the deferred work is observable (final review, Blocker 3)', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  function buildRealWiring() {
+    const mc = new FakeModelContext();
+    const ledger = new Ledger(() => 1000);
+    const exhibits = new ExhibitStore();
+    const facts = new FactStore();
+    const receipts = new Receipts();
+    const assessments = new AssessmentStore(exhibits, receipts);
+    const disputes = new DisputeStore(exhibits, receipts);
+    const verdicts = new VerdictStore(assessments, receipts, facts, exhibits);
+
+    let phaseMachine: PhaseMachine | undefined;
+    /** What the page could see each time it was told to look again. */
+    const seenOnStateChange: { phase: Phase; heldA: boolean; handA: string[] }[] = [];
+
+    const impl = createToolImpl({
+      exhibits, facts, receipts, assessments, disputes, verdicts,
+      getPhaseMachine: () => phaseMachine!,
+      onStateChange: () => {
+        seenOnStateChange.push({
+          phase: phaseMachine!.phase,
+          heldA: phaseMachine!.appealHeld('A'),
+          handA: registry.manifest('A').granted.map((g) => g.tool).sort(),
+        });
+      }
+    });
+
+    const registry = new ToolRegistry(mc, ledger, impl);
+    phaseMachine = new PhaseMachine(registry);
+    return { mc, ledger, registry, phaseMachine, impl, seenOnStateChange };
+  }
+
+  it('moves the phase back to REVIEW and takes the appeal out of the hand once the timer runs', async () => {
+    const w = buildRealWiring();
+    await w.phaseMachine.enter('VERDICT');
+
+    expect(w.phaseMachine.phase).toBe('VERDICT');
+    expect(w.phaseMachine.appealHeld('A')).toBe(true);
+    expect(w.registry.manifest('A').granted.map((g) => g.tool)).toContain('spend_appeal');
+
+    await w.impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.A);
+
+    // Everything the ledger subscription would have rendered still says the
+    // old thing at this point. This is exactly the stale frame the fix is
+    // about, and it is correct that it is still stale here.
+    expect(w.phaseMachine.phase).toBe('VERDICT');
+    expect(w.phaseMachine.appealHeld('A')).toBe(true);
+
+    await vi.runAllTimersAsync();
+
+    expect(w.phaseMachine.phase).toBe('REVIEW');
+    expect(w.phaseMachine.appealSpent('A')).toBe(true);
+    expect(w.phaseMachine.appealHeld('A')).toBe(false);
+    expect(w.registry.manifest('A').granted.map((g) => g.tool)).not.toContain('spend_appeal');
+  });
+
+  it('tells the page to look again, and only after the state it has to render is already true', async () => {
+    const w = buildRealWiring();
+    await w.phaseMachine.enter('VERDICT');
+    await w.impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.A);
+
+    // Nothing yet: the deferral has not run, so there is nothing new to show.
+    expect(w.seenOnStateChange).toHaveLength(0);
+
+    await vi.runAllTimersAsync();
+
+    expect(w.seenOnStateChange).toHaveLength(1);
+    // The callback must fire AFTER the mutation, or the render it triggers
+    // paints the same stale frame the ledger subscription already painted.
+    expect(w.seenOnStateChange[0].phase).toBe('REVIEW');
+    expect(w.seenOnStateChange[0].heldA).toBe(false);
+    expect(w.seenOnStateChange[0].handA).not.toContain('spend_appeal');
+  });
+
+  it("leaves the other side's appeal alone", async () => {
+    const w = buildRealWiring();
+    await w.phaseMachine.enter('VERDICT');
+    await w.impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.A);
+    await vi.runAllTimersAsync();
+
+    expect(w.phaseMachine.appealSpent('B')).toBe(false);
+    // B's appeal is not held right now only because the phase went back to
+    // REVIEW, where no appeal lifetime is open at all, not because it was
+    // spent. Re-entering VERDICT gives it back, unspent.
+    await w.phaseMachine.enter('VERDICT');
+    expect(w.phaseMachine.appealHeld('B')).toBe(true);
+    expect(w.phaseMachine.appealHeld('A')).toBe(false);
+  });
+
+  it('still tells the page to look again when the deferred transition throws', async () => {
+    const w = buildRealWiring();
+    await w.phaseMachine.enter('VERDICT');
+    // `spendAppeal` has already mutated the machine by the time `enter` can
+    // fail, so a failed transition still leaves the screen showing something
+    // that is no longer true. A render is the right answer either way.
+    vi.spyOn(w.phaseMachine, 'enter').mockRejectedValueOnce(new Error('registerTool refused'));
+
+    await w.impl.spend_appeal({ reason: 'the summary omits page 3' }, ORIGIN.A);
+    await vi.runAllTimersAsync();
+
+    expect(w.seenOnStateChange).toHaveLength(1);
+    expect(w.phaseMachine.appealSpent('A')).toBe(true);
   });
 });

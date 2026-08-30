@@ -45,13 +45,29 @@ export class Ledger {
 
   constructor(private clock: () => number = () => Date.now()) {}
 
+  /**
+   * Final review, Blocker 3 (second half): the success branch used to sit
+   * INSIDE the `try`: push the entry, notify, return. A subscriber that
+   * threw would therefore be caught by this function's own `catch`, which
+   * would then write a SECOND row for the same call marked as a refusal, and
+   * rethrow. A call that genuinely succeeded would render as REFUSED, with
+   * the tool's call count at two. Nothing would look broken; the record would
+   * just be wrong about what happened, which is the only kind of wrong this
+   * project cannot tolerate.
+   *
+   * It could not fire while React's state setter was the only subscriber.
+   * The appeal-refresh fix in `App.tsx` adds a second one, so it could.
+   *
+   * Two changes close it: the success path's `notify()` now runs after the
+   * `try` has already completed, and `notify()` itself isolates each
+   * subscriber (below) so one throwing listener can neither corrupt this
+   * record nor stop the other listeners from running.
+   */
   wrap(origin: string, tool: string, run: ToolRun): (args: any) => Promise<unknown> {
     return async (args: any) => {
+      let result: unknown;
       try {
-        const result = await run(args, origin);
-        this.entries.push({ origin, tool, at: this.clock(), ok: true });
-        this.notify();
-        return result;
+        result = await run(args, origin);
       } catch (err) {
         this.entries.push({
           origin, tool, at: this.clock(), ok: false,
@@ -60,6 +76,9 @@ export class Ledger {
         this.notify();
         throw err;
       }
+      this.entries.push({ origin, tool, at: this.clock(), ok: true });
+      this.notify();
+      return result;
     };
   }
 
@@ -95,7 +114,20 @@ export class Ledger {
     return () => { this.listeners.delete(listener); };
   }
 
+  /**
+   * A throwing subscriber must not be able to change what the ledger says
+   * happened, and must not stop the other subscribers from hearing about it.
+   * Each listener is therefore isolated. Swallowing is deliberate but not
+   * silent: the failure goes to the console, because a refresh callback that
+   * throws is a bug in the UI, not evidence about the case.
+   */
   private notify(): void {
-    for (const listener of this.listeners) listener();
+    for (const listener of this.listeners) {
+      try {
+        listener();
+      } catch (err) {
+        console.error('ledger subscriber threw; the record is unaffected', err);
+      }
+    }
   }
 }

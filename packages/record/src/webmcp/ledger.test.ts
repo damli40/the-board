@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Ledger } from './ledger';
 import { ORIGIN } from '../config/origins';
 
@@ -93,6 +93,56 @@ describe('Ledger', () => {
       unsubscribe();
       await ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => 'ok')({});
       expect(notified).toBe(1);
+    });
+
+    // -------------------------------------------------------------------
+    // FINAL REVIEW, BLOCKER 3 (second half): the success branch's notify()
+    // used to sit INSIDE wrap()'s try. A subscriber that threw was therefore
+    // caught by wrap()'s own catch, which wrote a SECOND entry for the same
+    // call, marked as a refusal, and rethrew. A successful call rendered as
+    // REFUSED with its count at two, and nothing looked broken.
+    //
+    // It could not fire while React's state setter was the only subscriber.
+    // The appeal-refresh fix adds a second one, so it could.
+    // -------------------------------------------------------------------
+    describe('a subscriber that throws (final review, Blocker 3)', () => {
+      afterEach(() => { vi.restoreAllMocks(); });
+
+      it('cannot turn a successful call into a refusal, or write a second row for it', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const ledger = new Ledger(() => 1000);
+        ledger.subscribe(() => { throw new Error('a render blew up'); });
+
+        await expect(ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => 'ok')({})).resolves.toBe('ok');
+
+        expect(ledger.all()).toEqual([{ origin: ORIGIN.seat1, tool: 'open_exhibit', at: 1000, ok: true }]);
+        expect(ledger.countsFor(ORIGIN.seat1)).toEqual({ open_exhibit: 1 });
+      });
+
+      it('cannot replace a genuine refusal with its own error', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const ledger = new Ledger(() => 1000);
+        ledger.subscribe(() => { throw new Error('a render blew up'); });
+
+        const run = ledger.wrap(ORIGIN.seat2, 'cite', async () => { throw new Error('seat2 never assessed F9'); });
+
+        // The message the panel renders must be the tool's, not the UI's.
+        await expect(run({})).rejects.toThrow('seat2 never assessed F9');
+        expect(ledger.all()).toHaveLength(1);
+        expect(ledger.all()[0].detail).toBe('seat2 never assessed F9');
+      });
+
+      it('still notifies every other subscriber when one of them throws', async () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const ledger = new Ledger(() => 1000);
+        const seen: string[] = [];
+        ledger.subscribe(() => { seen.push('first'); });
+        ledger.subscribe(() => { throw new Error('a render blew up'); });
+        ledger.subscribe(() => { seen.push('third'); });
+
+        await ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => 'ok')({});
+        expect(seen).toEqual(['first', 'third']);
+      });
     });
   });
 });

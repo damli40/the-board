@@ -115,11 +115,31 @@ export interface ToolImplDeps {
    * no-op for App.tsx's real wiring.
    */
   now?: () => string;
+  /**
+   * Final review, Blocker 3: fires once the DEFERRED half of `spend_appeal`
+   * has finished (see that body below). Everything else on this page
+   * re-renders off `Ledger.subscribe`, which fires in a microtask when the
+   * call's receipt lands, and React schedules its render ahead of a clamped
+   * zero-delay timer. So the hand, the manifest and the phase ribbon all
+   * render while the appeal is still held and the phase is still VERDICT,
+   * and the abort then lands with nobody listening. Nothing re-renders
+   * afterwards, because VERDICT has no next-phase button to press.
+   *
+   * The deferral itself cannot go: it is what stops `spend_appeal` aborting
+   * the registration it is executing under, which on Chrome 152 and earlier
+   * cancels an in-flight execution. So the deferred work is made OBSERVABLE
+   * instead. `App.tsx` passes its `refresh` here.
+   *
+   * Optional, and a no-op by default, so a test or a caller that does not
+   * care about re-rendering needs no change.
+   */
+  onStateChange?: () => void;
 }
 
 export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
   const { exhibits, facts, receipts, assessments, disputes, verdicts, getPhaseMachine } = deps;
   const now = deps.now ?? (() => new Date().toISOString());
+  const onStateChange = deps.onStateChange ?? (() => {});
 
   const bodies: Record<string, ToolRun> = {
     file_exhibit: async (args, origin) => {
@@ -291,15 +311,38 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
       const side = requireSide(actorFor(origin));
       const phaseMachine = getPhaseMachine();
       const result = { spent: true, side, reason: args?.reason, contests: args?.contests };
+      // Final review, Blocker 3: the deferral stays (see above), but it can
+      // no longer be invisible. Nothing else on the page re-renders after
+      // this timer fires. The ledger's own notify already ran, in a
+      // microtask, back when the call's receipt landed and before any of
+      // this happened, so the hand, the manifest and the phase ribbon all
+      // painted while the appeal was still held and the phase was still
+      // VERDICT. `onStateChange` is what tells the page to look again.
+      //
+      // It fires in `finally`, not only on success: `spendAppeal` has
+      // already mutated the phase machine by the time `enter` can fail, so
+      // a failed transition still leaves the screen showing something that
+      // is no longer true. A render is the right answer either way.
       setTimeout(() => {
-        try {
-          phaseMachine.spendAppeal(side);
-          phaseMachine.enter('REVIEW').catch((err) => {
-            console.error('spend_appeal: phaseMachine.enter("REVIEW") failed after the appeal was already recorded as spent', err);
-          });
-        } catch (err) {
-          console.error('spend_appeal: deferred phase transition failed', err);
-        }
+        void (async () => {
+          try {
+            phaseMachine.spendAppeal(side);
+            await phaseMachine.enter('REVIEW');
+          } catch (err) {
+            console.error('spend_appeal: deferred phase transition failed after the appeal was already recorded as spent', err);
+          } finally {
+            // Guarded separately: a throw from `finally` escapes the `catch`
+            // above and, inside this detached async call, becomes an
+            // unhandled rejection with no stack pointing back here. A render
+            // callback that blows up is a UI bug, not evidence about the
+            // case, so it is logged and contained.
+            try {
+              onStateChange();
+            } catch (err) {
+              console.error('spend_appeal: onStateChange threw; the phase transition itself already completed', err);
+            }
+          }
+        })();
       }, 0);
       return result;
     }
