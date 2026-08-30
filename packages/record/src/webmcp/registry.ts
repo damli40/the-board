@@ -1,5 +1,5 @@
 import { ORIGIN, type Actor } from '../model/types';
-import { ALL_TOOL_NAMES, TOOLS, type Lifetime } from './tools';
+import { ALL_TOOL_NAMES, TOOLS, registeredToolName, type Lifetime } from './tools';
 import type { Ledger, ToolRun } from './ledger';
 
 export interface ModelContextLike {
@@ -59,7 +59,11 @@ export class ToolRegistry {
         const body = this.impl[spec.name] ?? (async () => { throw new Error(`${spec.name} not implemented`); });
         try {
           await this.mc.registerTool({
-            name: spec.name,
+            // Per-actor name: WebMCP tool names are unique per DOCUMENT, so
+            // A's and B's copies of the same capability cannot share one.
+            // `granted` below still records the BARE name, so the manifest is
+            // unchanged. See registeredToolName in ./tools.
+            name: registeredToolName(actor, spec.name),
             title: spec.title,
             description: spec.description,
             inputSchema: spec.inputSchema,

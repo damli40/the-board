@@ -19,6 +19,7 @@
 // src/config/origins.test.ts — PARENT_ORIGIN is imported, never written out.
 import { PARENT_ORIGIN } from '../../../record/src/config/origins';
 import { sanitizeCounterpartyText } from './sanitize';
+import { bareToolName } from '../../../record/src/webmcp/tools';
 
 declare global {
   namespace WebMCP {
@@ -153,7 +154,9 @@ export async function runAgentTurn(goal: string): Promise<string> {
     for (const call of plan.calls) {
       const tool = tools.find((t) => t.name === call.name);
       if (!tool) {
-        const line = `NOT GRANTED: ${call.name}`;
+        // Bare name on screen. The panel shows the capability, not the
+        // per-actor registration key it was refused under.
+        const line = `NOT GRANTED: ${bareToolName(call.name)}`;
         transcript.push(line);
         messages.push({ role: 'tool', content: line });
         continue;
@@ -166,7 +169,7 @@ export async function runAgentTurn(goal: string): Promise<string> {
         const result = await mc.executeTool(tool, JSON.stringify(call.arguments ?? {}));
         // executeTool resolves to null when the tool triggers a navigation —
         // null is not an error.
-        const raw = result === null ? `${call.name}: navigated` : String(result);
+        const raw = result === null ? `${bareToolName(call.name)}: navigated` : String(result);
         transcript.push(raw);
 
         // Ruling 2 / fix round 1, Important 2: sanitise unless the tool

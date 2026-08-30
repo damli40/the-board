@@ -4,6 +4,7 @@ import { ToolRegistry } from './registry';
 import { Ledger } from './ledger';
 import { FakeModelContext } from './fakeModelContext';
 import { ORIGIN } from '../config/origins';
+import { bareToolName } from './tools';
 
 describe('PhaseMachine', () => {
   let mc: FakeModelContext;
@@ -20,20 +21,20 @@ describe('PhaseMachine', () => {
     // Parties can also read during filing now — dispute requires it. Same tool,
     // different lifetime, different actors (ruling 2: the brief's four-tool
     // expectation was stale).
-    expect(mc.visibleTo(ORIGIN.A)).toEqual(['concede', 'dispute', 'file_exhibit', 'file_fact', 'open_exhibit']);
-    expect(mc.visibleTo(ORIGIN.seat1)).toEqual([]);
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toEqual(['concede', 'dispute', 'file_exhibit', 'file_fact', 'open_exhibit']);
+    expect(mc.capabilitiesVisibleTo(ORIGIN.seat1)).toEqual([]);
   });
 
   it('withdraws filing and opens the board when review begins', async () => {
     await phases.enter('REVIEW');
-    expect(mc.visibleTo(ORIGIN.A)).toEqual(['object']);
-    expect(mc.visibleTo(ORIGIN.seat1)).toEqual(['extract_text', 'open_exhibit', 'record_assessment', 'search_exhibits']);
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toEqual(['object']);
+    expect(mc.capabilitiesVisibleTo(ORIGIN.seat1)).toEqual(['extract_text', 'open_exhibit', 'record_assessment', 'search_exhibits']);
   });
 
   it('keeps the board reading while it drafts — boardRead outlives REVIEW', async () => {
     await phases.enter('REVIEW');
     await phases.enter('VERDICT');
-    const seen = mc.visibleTo(ORIGIN.seat2);
+    const seen = mc.capabilitiesVisibleTo(ORIGIN.seat2);
     expect(seen).toContain('open_exhibit');
     expect(seen).toContain('draft_verdict');
   });
@@ -41,7 +42,7 @@ describe('PhaseMachine', () => {
   it('hands each side exactly one appeal at verdict', async () => {
     await phases.enter('REVIEW');
     await phases.enter('VERDICT');
-    expect(mc.visibleTo(ORIGIN.A)).toContain('spend_appeal');
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toContain('spend_appeal');
     expect(phases.appealHeld('A')).toBe(true);
   });
 
@@ -49,8 +50,8 @@ describe('PhaseMachine', () => {
     await phases.enter('REVIEW');
     await phases.enter('VERDICT');
     phases.spendAppeal('A');
-    expect(mc.visibleTo(ORIGIN.A)).not.toContain('spend_appeal');
-    expect(mc.visibleTo(ORIGIN.B)).toContain('spend_appeal');
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).not.toContain('spend_appeal');
+    expect(mc.capabilitiesVisibleTo(ORIGIN.B)).toContain('spend_appeal');
     expect(phases.appealHeld('A')).toBe(false);
     expect(phases.appealHeld('B')).toBe(true);
   });
@@ -61,8 +62,8 @@ describe('PhaseMachine', () => {
     phases.spendAppeal('A');
     await phases.enter('REVIEW');   // the appeal re-opens review
     await phases.enter('VERDICT');  // and we come back
-    expect(mc.visibleTo(ORIGIN.A)).not.toContain('spend_appeal');
-    expect(mc.visibleTo(ORIGIN.B)).toContain('spend_appeal');
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).not.toContain('spend_appeal');
+    expect(mc.capabilitiesVisibleTo(ORIGIN.B)).toContain('spend_appeal');
   });
 
   it('leaves every agent with nothing once confirmed', async () => {
@@ -70,7 +71,7 @@ describe('PhaseMachine', () => {
     await phases.enter('VERDICT');
     await phases.enter('CONFIRMED');
     for (const o of [ORIGIN.A, ORIGIN.B, ORIGIN.seat1, ORIGIN.seat2]) {
-      expect(mc.visibleTo(o)).toEqual([]);
+      expect(mc.capabilitiesVisibleTo(o)).toEqual([]);
     }
   });
 
@@ -85,7 +86,7 @@ describe('PhaseMachine', () => {
     const refusingMc = new FakeModelContext();
     const real = refusingMc.registerTool.bind(refusingMc);
     vi.spyOn(refusingMc, 'registerTool').mockImplementation(async (def: any, opts: any) => {
-      if (def.name === 'spend_appeal' && opts.exposedTo.includes(ORIGIN.A)) {
+      if (bareToolName(def.name) === 'spend_appeal' && opts.exposedTo.includes(ORIGIN.A)) {
         const err = new Error("Permissions-Policy 'tools' does not allow this origin");
         err.name = 'NotAllowedError';
         throw err;
@@ -99,7 +100,7 @@ describe('PhaseMachine', () => {
 
     expect(machine.appealHeld('A')).toBe(false);
     expect(machine.appealSpent('A')).toBe(false); // refused, not spent
-    expect(refusingMc.visibleTo(ORIGIN.A)).not.toContain('spend_appeal');
+    expect(refusingMc.capabilitiesVisibleTo(ORIGIN.A)).not.toContain('spend_appeal');
     // B's appeal registered normally and is unaffected.
     expect(machine.appealHeld('B')).toBe(true);
     // And the refusal is reported rather than left to be inferred.

@@ -180,3 +180,53 @@ export const NEVER_GRANTED = ['confirm', 'return_with_note'];
 
 /** The universe the manifest subtracts from. */
 export const ALL_TOOL_NAMES = [...new Set(TOOLS.map((t) => t.name)), ...NEVER_GRANTED];
+
+/**
+ * WebMCP tool names are unique per DOCUMENT, not per origin. The spec is
+ * explicit: "If tool map[tool name] exists, then return a promise rejected
+ * with an InvalidStateError DOMException."
+ *
+ * This design hands both advocates the same five capabilities and both seats
+ * the same six. Registering each under one shared name meant Chrome accepted
+ * the FIRST actor's copy and refused the second's, so Advocate B and Seat 2
+ * ended up holding nothing at all. Observed in Chrome 152 on 30 Aug 2026, on
+ * the first run in a real browser. No unit test caught it, because the test
+ * double did not enforce uniqueness — it was more permissive than Chrome.
+ *
+ * It was visible at all only because `ToolRegistry` records what the browser
+ * REFUSED rather than assuming every registration succeeded. Without that,
+ * B's manifest would have drawn an empty GRANTED column, which looks exactly
+ * like a boundary working correctly.
+ *
+ * So each actor's copy registers under its own name. This is not a workaround
+ * for the collision; it is the honest shape of the design. The actor is closed
+ * over at registration, which is what makes `actorFor(origin)` safe: there is
+ * no argument B's agent can pass to reach A's tool, because B was never handed
+ * a reference to it. One shared registration exposed to both origins would
+ * register fine and then be UNABLE to tell the two apart — `execute` receives
+ * `(inputObject, options)` and options carries only an AbortSignal, so a shared
+ * tool cannot learn its caller. That is the spoofing hole this design exists
+ * to close.
+ *
+ * The manifest is unaffected: `granted` is recorded from `spec.name`, never
+ * from the registered name, so a viewer still reads "file_exhibit" in both
+ * columns exactly as before.
+ */
+export const ACTOR_PREFIX: Record<Actor, string> = { A: 'a', B: 'b', seat1: 'seat1', seat2: 'seat2' };
+
+/** The name a tool is registered under for one actor. Unique per document. */
+export function registeredToolName(actor: Actor, tool: string): string {
+  return `${ACTOR_PREFIX[actor]}__${tool}`;
+}
+
+/**
+ * The inverse, for display and for schema lookup. Strips only a KNOWN actor
+ * prefix, so a tool name that happens to contain `__` is returned untouched
+ * rather than silently truncated at the wrong place.
+ */
+export function bareToolName(registered: string): string {
+  for (const prefix of Object.values(ACTOR_PREFIX)) {
+    if (registered.startsWith(`${prefix}__`)) return registered.slice(prefix.length + 2);
+  }
+  return registered;
+}

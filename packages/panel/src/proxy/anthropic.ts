@@ -19,7 +19,7 @@
 // The panel's contract is deliberately unchanged. `loop.ts` is tested and
 // reviewed; the translation belongs at the boundary, which is here.
 import type Anthropic from '@anthropic-ai/sdk';
-import { TOOLS } from '../../../record/src/webmcp/tools';
+import { TOOLS, bareToolName } from '../../../record/src/webmcp/tools';
 
 /** What `loop.ts`'s `askModel` sends. Mirrors its `ProxyMessage`. */
 export interface PanelMessage {
@@ -118,7 +118,9 @@ const SCHEMA_BY_NAME: Record<string, unknown> = Object.fromEntries(
 const UNKNOWN_TOOL_SCHEMA = { type: 'object' as const, properties: {} };
 
 export function schemaFor(name: string): Anthropic.Tool['input_schema'] {
-  const schema = SCHEMA_BY_NAME[name];
+  // Tools arrive registered per actor (a__file_exhibit); the catalogue is
+  // keyed by the bare name.
+  const schema = SCHEMA_BY_NAME[bareToolName(name)];
   if (!schema) return UNKNOWN_TOOL_SCHEMA;
   // `ToolSpec.inputSchema` is declared as `object` in webmcp/tools.ts, so a
   // cast is unavoidable here. Every entry in that file is built by the same
@@ -128,7 +130,7 @@ export function schemaFor(name: string): Anthropic.Tool['input_schema'] {
 
 /** True when the catalogue has no schema for this name. Callers log it. */
 export function schemaIsUnknown(name: string): boolean {
-  return !SCHEMA_BY_NAME[name];
+  return !SCHEMA_BY_NAME[bareToolName(name)];
 }
 
 export function parsePanelRequest(raw: string | null | undefined): PanelRequest {
