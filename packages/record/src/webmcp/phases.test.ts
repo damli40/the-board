@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PhaseMachine } from './phases';
 import { ToolRegistry } from './registry';
 import { Ledger } from './ledger';
@@ -72,5 +72,48 @@ describe('PhaseMachine', () => {
     for (const o of [ORIGIN.A, ORIGIN.B, ORIGIN.seat1, ORIGIN.seat2]) {
       expect(mc.visibleTo(o)).toEqual([]);
     }
+  });
+
+  // Final review, Should-fix 6, one surface over from the manifest. The
+  // appeal card in the hand is a drawn capability, so it must read what the
+  // browser actually granted. `isOpen` cannot answer that: `open()` inserts
+  // the abort controller BEFORE any registration resolves, so a lifetime
+  // whose every `registerTool` was refused is still "open" and grants
+  // nothing. Drawing off `isOpen` would put a face-up `spend_appeal x1` in
+  // A's hand for a tool A does not hold.
+  it('does not show an appeal the browser refused to register', async () => {
+    const refusingMc = new FakeModelContext();
+    const real = refusingMc.registerTool.bind(refusingMc);
+    vi.spyOn(refusingMc, 'registerTool').mockImplementation(async (def: any, opts: any) => {
+      if (def.name === 'spend_appeal' && opts.exposedTo.includes(ORIGIN.A)) {
+        const err = new Error("Permissions-Policy 'tools' does not allow this origin");
+        err.name = 'NotAllowedError';
+        throw err;
+      }
+      return real(def, opts);
+    });
+
+    const registry = new ToolRegistry(refusingMc, new Ledger(() => 1000), new Proxy({}, { get: () => async () => 'ok' }) as any);
+    const machine = new PhaseMachine(registry);
+    await machine.enter('VERDICT');
+
+    expect(machine.appealHeld('A')).toBe(false);
+    expect(machine.appealSpent('A')).toBe(false); // refused, not spent
+    expect(refusingMc.visibleTo(ORIGIN.A)).not.toContain('spend_appeal');
+    // B's appeal registered normally and is unaffected.
+    expect(machine.appealHeld('B')).toBe(true);
+    // And the refusal is reported rather than left to be inferred.
+    expect(registry.registrationFailures().map((f) => f.tool)).toEqual(['spend_appeal']);
+
+    vi.restoreAllMocks();
+  });
+
+  it('still shows an appeal that registered normally', async () => {
+    await phases.enter('VERDICT');
+    expect(phases.appealHeld('A')).toBe(true);
+    expect(phases.appealHeld('B')).toBe(true);
+    phases.spendAppeal('A');
+    expect(phases.appealHeld('A')).toBe(false);
+    expect(phases.appealHeld('B')).toBe(true);
   });
 });

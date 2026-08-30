@@ -21,6 +21,13 @@ to prove `file_exhibit` itself works as a real tool call, not just as fixture-lo
 3. Confirm the four iframes (Advocate A, Advocate B, Seat 1, Seat 2) all render past
    "WebMCP not available" — if any shows that amber message, the flag from step 1 didn't take on
    that specific origin/port; re-check before going further.
+3b. **Confirm the record page shows no "the browser refused N registrations" banner.** It appears
+   directly above the double-prompt bar and is normally absent. If it is there, the browser declined
+   to register the tools it lists. A `Permissions-Policy` that does not name that origin is the
+   usual cause (see step 5 of `deploy.md`), and those tools are correctly missing from every
+   GRANTED column below. Do not film that state: a manifest missing a row for a REFUSED
+   registration looks identical on camera to one missing a row for a WITHHELD capability, and the
+   whole claim rests on the difference. Fix the header and reload.
 4. **Pre-flight the model proxy** (`packages/panel/netlify/functions/model-proxy.ts`) with one throwaway prompt in
    any panel's manual-goal box before recording. If it's flaky on the day, every step below that
    says "type into a panel" has a fallback: open that origin's DevTools console and call
@@ -204,10 +211,14 @@ Type into **A's** manual-goal box: *"Spend your appeal — the summary omits pag
 language."*
 - **PASS:** A's appeal card disappears from A's hand and is replaced by the permanent
   `appeal — spent` socket (dashed border, distinct from "not held yet"). The phase ribbon moves back
-  to `REVIEW` **automatically** — `spend_appeal`'s tool body calls `phaseMachine.enter('REVIEW')`
-  itself as part of the same call (a gap found while wiring this task: nothing previously did this,
-  and the shipped UI has no manual "return to review" button, so without this the phase was
-  permanently stuck at VERDICT after any appeal). B's `spend_appeal ×1` card **temporarily**
+  to `REVIEW` **automatically**, because `spend_appeal`'s tool body performs the transition itself as part
+  of the same call (a gap found while wiring this task: nothing previously did this, and the shipped
+  UI has no manual "return to review" button, so without this the phase was permanently stuck at
+  VERDICT after any appeal). Expect the card and the ribbon to change together, one tick after the
+  panel logs `spend_appeal -> {...}`, not in the same frame: the mutation is deliberately deferred
+  past a macrotask boundary so it cannot abort the registration it is executing under, and the page
+  is told to re-render once that deferred work finishes. It is a beat, not a hang. If the ribbon
+  still reads `VERDICT` after a full second, that is the failure below, not the beat. B's `spend_appeal ×1` card **temporarily**
   disappears too at this instant — appeal cards only exist during VERDICT phase, by design — and
   reappears once VERDICT is re-entered below, still unspent.
 - **FAIL:** the phase does not move to `REVIEW` after this call, or B's card is gone AND does not come

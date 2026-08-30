@@ -29,8 +29,16 @@ export class PhaseMachine {
     this.registry.close(APPEAL_LIFETIME[side]);
   }
 
+  /**
+   * Drives the appeal card in the hand, so it reads `hasLiveGrant`, not
+   * `isOpen`. Final review, Should-fix 6: a lifetime whose `registerTool` the
+   * browser refused is still "open", because the abort controller went in
+   * before any registration resolved, and drawing the card off that would put a
+   * face-up `spend_appeal ×1` in A's hand for a tool A does not hold, which is
+   * exactly the manifest bug one surface over.
+   */
   appealHeld(side: Side): boolean {
-    return this.registry.isOpen(APPEAL_LIFETIME[side]);
+    return this.registry.hasLiveGrant(APPEAL_LIFETIME[side]);
   }
 
   /**

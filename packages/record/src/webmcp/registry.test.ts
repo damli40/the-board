@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolRegistry } from './registry';
 import { Ledger } from './ledger';
 import { FakeModelContext } from './fakeModelContext';
@@ -86,5 +86,84 @@ describe('ToolRegistry', () => {
         expect(mc.visibleTo(origin)).not.toContain(forbidden);
       }
     }
+  });
+
+  // ---------------------------------------------------------------------
+  // FINAL REVIEW, SHOULD-FIX 6: the manifest used to project INTENT, not
+  // the browser.
+  //
+  // `open()` inserted the abort controller before any `registerTool`
+  // resolved, and `registered()` rebuilt the grant list from the catalogue
+  // and the set of open lifetimes without ever asking what had actually
+  // registered. So a rejected registration (`NotAllowedError` from a
+  // Permissions-Policy that does not name the origin is the realistic one)
+  // threw out of `open()` mid-loop with no caller catching it, while the
+  // record page went on drawing a full GRANTED column for tools that were
+  // never registered and the panels correctly reported them as not granted.
+  //
+  // That failure looks exactly like the boundary working, which is the most
+  // dangerous shape a bug can take here.
+  // ---------------------------------------------------------------------
+  describe('a registration the browser refuses', () => {
+    /** Rejects one named tool the way Chrome would, and registers the rest. */
+    function refuse(tool: string) {
+      const real = mc.registerTool.bind(mc);
+      vi.spyOn(mc, 'registerTool').mockImplementation(async (def: any, opts: any) => {
+        if (def.name === tool) {
+          const err = new Error(`Permissions-Policy 'tools' does not allow ${opts.exposedTo.join(', ')}`);
+          err.name = 'NotAllowedError';
+          throw err;
+        }
+        return real(def, opts);
+      });
+    }
+
+    it('never appears as a live grant', async () => {
+      refuse('extract_text');
+      await registry.open('boardRead');
+
+      const granted = registry.manifest('seat2').granted.map((g) => g.tool);
+      expect(granted).not.toContain('extract_text');
+      // The tools registered alongside it are unaffected: one refusal must
+      // not silently strip everything declared after it either.
+      expect(granted.sort()).toEqual(['open_exhibit', 'record_assessment', 'search_exhibits']);
+    });
+
+    it('is reported, not swallowed, so a missing row cannot pass for a withheld capability', async () => {
+      refuse('extract_text');
+      await registry.open('boardRead');
+
+      const failures = registry.registrationFailures();
+      expect(failures).toHaveLength(2); // one per seat
+      expect(failures.map((f) => f.tool)).toEqual(['extract_text', 'extract_text']);
+      expect(failures.map((f) => f.origin).sort()).toEqual([ORIGIN.seat1, ORIGIN.seat2].sort());
+      expect(failures[0].lifetime).toBe('boardRead');
+      expect(failures[0].reason).toContain('Permissions-Policy');
+    });
+
+    it('does not reject out of open(), so the page still comes up', async () => {
+      refuse('extract_text');
+      await expect(registry.open('boardRead')).resolves.toBeUndefined();
+    });
+
+    it('reports nothing when every registration succeeds', async () => {
+      await registry.open('boardRead');
+      expect(registry.registrationFailures()).toEqual([]);
+    });
+
+    it('clears its failures when the lifetime closes', async () => {
+      refuse('extract_text');
+      await registry.open('boardRead');
+      expect(registry.registrationFailures()).toHaveLength(2);
+      registry.close('boardRead');
+      expect(registry.registrationFailures()).toEqual([]);
+    });
+  });
+
+  it('drops every grant when a lifetime closes, so registered() tracks the browser and not the catalogue', async () => {
+    await registry.open('boardRead');
+    expect(registry.registered().length).toBeGreaterThan(0);
+    registry.close('boardRead');
+    expect(registry.registered()).toEqual([]);
   });
 });
