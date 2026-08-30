@@ -47,7 +47,7 @@ const NEXT_PHASE: Partial<Record<Phase, Phase>> = { FILING: 'REVIEW', REVIEW: 'V
  * and wrong about the one that mattered). `engine.ledger.subscribe(refresh)`
  * below is what actually covers that path.
  */
-function useEngine(mc: ModelContextLike) {
+function useEngine(mc: ModelContextLike, onStateChange: () => void) {
   const ledger = useRef<Ledger | undefined>(undefined);
   const registry = useRef<ToolRegistry | undefined>(undefined);
   const phaseMachine = useRef<PhaseMachine | undefined>(undefined);
@@ -85,7 +85,14 @@ function useEngine(mc: ModelContextLike) {
       getPhaseMachine: () => {
         if (!phaseMachine.current) throw new Error('phase machine not ready yet');
         return phaseMachine.current;
-      }
+      },
+      // Final review, Blocker 3: `spend_appeal` defers its mutation past a
+      // macrotask boundary on purpose, which puts it AFTER the render the
+      // ledger subscription triggers. Without this callback the hand still
+      // shows the appeal card and the ribbon still reads VERDICT until some
+      // unrelated call happens to land, and at VERDICT there is no
+      // next-phase button to force one. Being a race, takes would differ.
+      onStateChange
     });
     registry.current = new ToolRegistry(mc, ledger.current, impl);
     phaseMachine.current = new PhaseMachine(registry.current);
@@ -118,10 +125,15 @@ export function App() {
   // registerTool call because the early return below short-circuits
   // rendering the rest of the tree whenever WebMCP is unavailable.
   const mc = useMemo<ModelContextLike>(() => getRealModelContext() ?? { registerTool: async () => {} }, []);
-  const engine = useEngine(mc);
 
+  // `tick`/`refresh` are declared BEFORE the engine now, because the engine's
+  // one-time construction needs `refresh` to hand to `createToolImpl`'s
+  // `onStateChange`. `refresh` has an empty dependency list, so it is stable
+  // for the life of the page and safe to capture once.
   const [tick, setTick] = useState(0);
   const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  const engine = useEngine(mc, refresh);
 
   const [prompt, setPrompt] = useState('');
   const iframeRefs = useRef<Partial<Record<Actor, HTMLIFrameElement | null>>>({});
@@ -166,6 +178,33 @@ export function App() {
     () => Object.fromEntries(ACTORS.map((a) => [a, engine.registry.manifest(a)])) as Record<Actor, ManifestData>,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tick]
+  );
+
+  // Final review, Should-fix 6: a `registerTool` the browser refuses (a
+  // Permissions-Policy that does not name the origin returns NotAllowedError)
+  // must never be able to pass for a working boundary. `ToolRegistry` no
+  // longer counts a refused registration as a grant, so the manifest stops
+  // claiming it, and this puts the refusal itself on screen, because a tool
+  // quietly missing from a GRANTED column looks identical to a tool correctly
+  // withheld. Normally empty.
+  const registrationFailures = useMemo(
+    () => engine.registry.registrationFailures(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tick]
+  );
+
+  // Final review, Should-fix 4: the split table's call-count column needs a
+  // denominator, or a tool a seat never called is simply absent from the row
+  // instead of showing as `0`, which is what the submission quotes that
+  // table as proving ("Seat 1 called extract_text zero times"). Projected
+  // from the same manifests the GRANTED column renders, so the zero can
+  // never name a capability the seat does not hold.
+  const grantedTools = useMemo(
+    () => ({
+      seat1: manifests.seat1.granted.map((g) => g.tool),
+      seat2: manifests.seat2.granted.map((g) => g.tool),
+    }),
+    [manifests]
   );
 
   const bytesOf = useCallback((id: string) => engine.exhibits.bytesOf(id), [engine.exhibits]);
@@ -222,6 +261,28 @@ export function App() {
       </header>
 
       <main className="p-4 flex flex-col gap-4">
+        {registrationFailures.length > 0 && (
+          <section
+            data-testid="registration-failures"
+            className="border border-amber-500 bg-amber-950/30 rounded-md p-3 text-sm text-amber-100"
+          >
+            <h2 className="uppercase tracking-widest text-xs text-amber-300 font-semibold mb-1">
+              the browser refused {registrationFailures.length} registration{registrationFailures.length === 1 ? '' : 's'}
+            </h2>
+            <p className="text-xs text-amber-200/80 mb-2">
+              These tools were asked for and not granted. They are absent from every manifest below, so a
+              GRANTED column that omits one is showing this failure, not a withheld capability.
+            </p>
+            <ul className="flex flex-col gap-0.5 text-xs font-mono">
+              {registrationFailures.map((f) => (
+                <li key={`${f.lifetime}:${f.origin}:${f.tool}`} data-testid={`registration-failure-${f.tool}`}>
+                  {f.tool} · {f.origin} · {f.lifetime} · {f.reason}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
         <section className="flex gap-2">
           <input
             data-testid="double-prompt-input"
@@ -272,6 +333,7 @@ export function App() {
           exhibits={engine.exhibits.all()}
           assessments={engine.assessments.all()}
           ledger={engine.ledger}
+          grantedTools={grantedTools}
         />
 
         <ConfirmBar outcome={engine.caseOutcome} onChange={() => { refresh(); if (engine.caseOutcome.state === 'confirmed') void engine.phaseMachine.enter('CONFIRMED').then(refresh); }} />
