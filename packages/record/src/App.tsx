@@ -132,8 +132,15 @@ function getRealModelContext(): ModelContextLike | undefined {
  */
 function roomCodeParam(): string {
   try {
-    const code = new URLSearchParams(globalThis.location?.search ?? '').get('code');
-    return code ? `&code=${encodeURIComponent(code)}` : '';
+    const q = new URLSearchParams(globalThis.location?.search ?? '');
+    const parts: string[] = [];
+    const code = q.get('code');
+    if (code) parts.push(`code=${encodeURIComponent(code)}`);
+    // Offline mode has to reach the panels, because that is where the agent
+    // loop runs. Propagated from the record's own url so ONE link puts the
+    // whole page in offline mode: /?offline=1
+    if (q.get('offline') === '1') parts.push('offline=1');
+    return parts.length ? `&${parts.join('&')}` : '';
   } catch {
     return '';
   }
@@ -174,7 +181,12 @@ export function App() {
   useEffect(() => {
     if (!status.available || scenarioLoaded.current) return;
     scenarioLoaded.current = true;
-    void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then(refresh);
+    void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then(() => {
+      refresh();
+      // Panels mount with the iframes, so give them a beat to install their
+      // message listener before the ids arrive.
+      setTimeout(broadcastDemo, 500);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status.available]);
 
@@ -236,16 +248,46 @@ export function App() {
     void engine.phaseMachine.enter(next).then(refresh);
   }
 
+  /**
+   * The ids `loadScenario` actually created, for offline mode.
+   *
+   * Read at send time rather than baked into the iframe url: exhibits load
+   * asynchronously after mount, so putting them in the src would change it
+   * once the case arrived and RELOAD every panel, wiping the transcript the
+   * demo is there to show.
+   */
+  function demoContext() {
+    return {
+      exhibitId: engine.exhibits.all()[0]?.id,
+      factId: engine.facts.all()[0]?.id,
+    };
+  }
+
+  /**
+   * Hands the same ids to all four panels, so a seat driven from its own
+   * composer can run offline too. The double prompt stays A and B only —
+   * that asymmetry is the thesis, not an oversight — so the ids travel on
+   * their own message rather than riding it.
+   */
+  function broadcastDemo() {
+    const demo = demoContext();
+    if (!demo.exhibitId && !demo.factId) return;
+    for (const actor of ACTORS) {
+      iframeRefs.current[actor]?.contentWindow?.postMessage({ type: 'board:demo', demo }, ORIGIN[actor]);
+    }
+  }
+
   function broadcastPrompt() {
     const goal = prompt.trim();
     if (!goal) return;
+    const demo = demoContext();
     // Storyboard component 2, "the double prompt": the SAME text, into BOTH
     // advocate panels, at the SAME instant. Never staggered, never sent to
     // one first — that is what makes the divergence in each panel's own
     // pane the proof rather than a claim.
     const sentAt = Date.now();
     for (const actor of ['A', 'B'] as const) {
-      iframeRefs.current[actor]?.contentWindow?.postMessage({ type: 'board:prompt', goal, sentAt }, ORIGIN[actor]);
+      iframeRefs.current[actor]?.contentWindow?.postMessage({ type: 'board:prompt', goal, sentAt, demo }, ORIGIN[actor]);
     }
   }
 

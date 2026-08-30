@@ -21,6 +21,7 @@ import { PARENT_ORIGIN } from '../../../record/src/config/origins';
 import { sanitizeCounterpartyText } from './sanitize';
 import { bareToolName } from '../../../record/src/webmcp/tools';
 import { ROOM_CODE_HEADER } from '../proxy/gate';
+import { isScriptedMode, scriptedPlan, type DemoContext } from './scripted';
 
 declare global {
   namespace WebMCP {
@@ -162,7 +163,7 @@ const MAX_STEPS = 6;
  * is a `NOT GRANTED:` line, and neither is ever swallowed (CLAUDE.md §1:
  * "A refusal must be surfaced in the panel, never swallowed").
  */
-export async function runAgentTurn(goal: string): Promise<string> {
+export async function runAgentTurn(goal: string, demo: DemoContext = {}): Promise<string> {
   const mc = getModelContext();
   if (!mc || typeof mc.getTools !== 'function') {
     return 'WebMCP not available in this panel.';
@@ -178,12 +179,19 @@ export async function runAgentTurn(goal: string): Promise<string> {
   const transcript: string[] = [];
   const messages: ProxyMessage[] = [{ role: 'user', content: goal }];
 
+  // Offline mode scripts ONLY this decision. Everything after it — the
+  // browser call, `exposedTo`, the refusal, the NOT GRANTED — is real.
+  const scripted = isScriptedMode();
+  const actor = new URLSearchParams(globalThis.location?.search ?? '').get('actor') ?? 'A';
+
   for (let step = 0; step < MAX_STEPS; step++) {
-    const plan = await askModel(
-      SYSTEM_INSTRUCTION,
-      messages,
-      tools.map((t) => ({ name: t.name, description: t.description }))
-    );
+    const plan = scripted
+      ? scriptedPlan(step, actor, tools, demo)
+      : await askModel(
+          SYSTEM_INSTRUCTION,
+          messages,
+          tools.map((t) => ({ name: t.name, description: t.description }))
+        );
 
     if (!plan.calls || plan.calls.length === 0) {
       if (plan.message) transcript.push(plan.message);

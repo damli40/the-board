@@ -4,7 +4,7 @@
 // every advocate panel's window at the SAME instant via postMessage, and
 // each panel runs its own `runAgentTurn` against its own grant. "Never film
 // the two panels in separate shots — the split screen is the proof."
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { PARENT_ORIGIN } from '../../record/src/config/origins';
 import type { Actor } from '../../record/src/model/types';
 import { ACTOR_ACCENT, ACTOR_LABEL, ACTORS } from '../../record/src/ui/theme';
@@ -16,6 +16,12 @@ interface PromptMessage {
   goal: string;
   /** Echoed back so a log line can show which broadcast a run answers, without a network round trip. */
   sentAt: number;
+  /**
+   * Ids the record actually created in `loadScenario`, for offline mode.
+   * Exhibit and fact ids are generated, never literals, so a scripted run
+   * that invented them would prove nothing. Absent in a live run.
+   */
+  demo?: { exhibitId?: string; factId?: string };
 }
 
 function isPromptMessage(data: unknown): data is PromptMessage {
@@ -42,6 +48,7 @@ export function App() {
   const [log, setLog] = useState<LogLine[]>([]);
   const [busy, setBusy] = useState(false);
   const [manualGoal, setManualGoal] = useState('');
+  const demoRef = useRef<{ exhibitId?: string; factId?: string }>({});
 
   // `sentAt` (fix round 1, Minor): the timestamp the record page attached
   // when it broadcast the double prompt into every advocate panel at once.
@@ -50,12 +57,12 @@ export function App() {
   // asserting it — put the two panels' goal lines side by side on camera and
   // the timestamps should read identical (or a handful of ms apart from
   // event-loop scheduling, not a human-driven gap).
-  const runGoal = useCallback(async (goal: string, sentAt?: number) => {
+  const runGoal = useCallback(async (goal: string, sentAt?: number, demo?: { exhibitId?: string; factId?: string }) => {
     setBusy(true);
     const sentLabel = sentAt !== undefined ? `  [sent ${new Date(sentAt).toISOString()}]` : '';
     setLog((prev) => [...prev, { at: Date.now(), text: `» ${goal}${sentLabel}`, kind: 'goal' }]);
     try {
-      const result = await runAgentTurn(goal);
+      const result = await runAgentTurn(goal, demo ?? demoRef.current);
       const lines = result.split('\n').filter(Boolean);
       setLog((prev) => [...prev, ...lines.map((text) => ({ at: Date.now(), text, kind: classify(text) }))]);
     } catch (err) {
@@ -79,8 +86,14 @@ export function App() {
     // imported from config/origins.ts (ruling 5).
     function onMessage(event: MessageEvent) {
       if (event.origin !== PARENT_ORIGIN) return;
+      // The record hands every panel the ids it actually created, so a run
+      // driven from this panel's own composer can use them too.
+      if ((event.data as { type?: unknown })?.type === 'board:demo') {
+        demoRef.current = (event.data as { demo?: { exhibitId?: string; factId?: string } }).demo ?? {};
+        return;
+      }
       if (!isPromptMessage(event.data)) return;
-      void runGoal(event.data.goal, event.data.sentAt);
+      void runGoal(event.data.goal, event.data.sentAt, event.data.demo);
     }
     window.addEventListener('message', onMessage);
     return () => window.removeEventListener('message', onMessage);
