@@ -46,7 +46,7 @@ The central mechanic came from a constraint. WebMCP has no way to unregister a t
 
 The page also lends capabilities. An agent cannot parse a PDF. The page can, so it carries pdf.js and offers text extraction as a tool. One dependency does three jobs: it powers the tool, it makes the quote check work on PDFs, and it feeds search. That turned out to be the clearest example of what this API is for. Not exposing your buttons to a robot. Lending an agent something it does not have, on your terms, with every use on the record.
 
-I built it as eleven tasks, each written test-first, each reviewed by a separate agent whose instruction was to make the code fail rather than confirm it looked fine. Every decision I made on my own authority went into a ledger with what it would cost if I was wrong. 210 tests pass.
+I built it as eleven tasks, each written test-first, each reviewed by a separate agent whose instruction was to make the code fail rather than confirm it looked fine. Every decision I made on my own authority went into a ledger with what it would cost if I was wrong. 253 tests pass.
 
 ## Challenges we ran into
 

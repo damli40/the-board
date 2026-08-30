@@ -3,7 +3,7 @@
 What happened, in order, with the reasoning attached. Newest section last.
 
 **Branch:** `build/the-board` (cut from `main`, which had no remote)
-**State at last entry:** 210 tests passing across 23 files, `tsc --noEmit` clean, both packages build clean
+**State at last entry:** 253 tests passing across 25 files, `tsc --noEmit` clean, both packages build clean
 **Not yet done:** submission artefacts, video, and every step that needs a browser or a public deploy
 
 ---

@@ -181,7 +181,7 @@ this project exists to demonstrate on camera.
 npm test
 ```
 
-**210 of 210 tests pass, across 23 test files, on Vitest 4.** That number covers every tool body,
+**253 of 253 tests pass, across 25 test files, on Vitest 4.** That number covers every tool body,
 every store, the phase machine, the ledger, the quote checker, the PDF text extraction, full-text
 search, the injection detector, and the sanitiser. What it does not cover is listed plainly below.
 
