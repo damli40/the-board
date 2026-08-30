@@ -1,7 +1,7 @@
 // Storyboard components 5 and 6, plus the split table from the 1:59 beat.
 // Both drafts render side by side; the split is computed once, from the
 // ledger and the read receipts, and rendered as data — never narrated.
-import type { Assessment, Exhibit, Fact, Verdict } from '../model/types';
+import type { Assessment, Exhibit, Fact, Seat, Verdict } from '../model/types';
 import type { Ledger } from '../webmcp/ledger';
 import { computeSplit } from '../model/verdict';
 import { resolveCitation } from './citation';
@@ -14,9 +14,39 @@ interface VerdictPanelProps {
   exhibits: Exhibit[];
   assessments: Assessment[];
   ledger: Ledger;
+  /**
+   * The tools each seat currently holds, projected from the registry (see
+   * `grantedTools` in App.tsx). Used only to decide which rows the call-count
+   * column has to draw. See `callRows` below for why it needs them.
+   */
+  grantedTools?: Record<Seat, string[]>;
 }
 
-export function VerdictPanel({ seat1, seat2, facts, exhibits, assessments, ledger }: VerdictPanelProps) {
+/**
+ * Final review, Should-fix 4. `Ledger.countsFor` only holds keys for tools
+ * that were actually called, so a tool a seat never touched was OMITTED from
+ * this column rather than shown as `0`. The submission quotes this exact
+ * table as the place the project renders an absence, "Seat 1 called
+ * `extract_text` zero times", and it was rendering a silence instead: the
+ * viewer had to notice a missing row and know it should have been there.
+ *
+ * Unioning the counts over the tools that seat currently HOLDS makes the zero
+ * real, and it is this project's own thesis pointed at its own UI: the
+ * denominator is the grant, so an uncalled capability is drawn, not dropped.
+ * `Manifest.tsx` has always done this for the NOT GRANTED column; this is the
+ * same move, one table over.
+ *
+ * The union also keeps every tool that WAS called even after its lifetime has
+ * closed and the grant is gone, so the history never disappears from the
+ * table. With no grant list supplied, this degrades to exactly the old
+ * behaviour: the tools actually called, and nothing else.
+ */
+function callRows(counts: Record<string, number>, granted: string[] | undefined): [string, number][] {
+  const names = new Set([...Object.keys(counts), ...(granted ?? [])]);
+  return [...names].sort().map((tool) => [tool, counts[tool] ?? 0]);
+}
+
+export function VerdictPanel({ seat1, seat2, facts, exhibits, assessments, ledger, grantedTools }: VerdictPanelProps) {
   const split = seat1 && seat2 ? computeSplit(seat1, seat2, ledger) : undefined;
 
   return (
@@ -47,13 +77,13 @@ export function VerdictPanel({ seat1, seat2, facts, exhibits, assessments, ledge
             <tbody>
               {(['seat1', 'seat2'] as const).map((seat) => {
                 const v = seat === 'seat1' ? seat1 : seat2;
-                const counts = split.callCounts[seat];
+                const rows = callRows(split.callCounts[seat], grantedTools?.[seat]);
                 return (
                   <tr key={seat} className="align-top">
                     <td className={`pr-4 py-0.5 ${ACTOR_ACCENT[seat].text}`}>{ACTOR_LABEL[seat]}</td>
                     <td className="pr-4 py-0.5 text-neutral-200">{v?.outcome ?? '—'}</td>
-                    <td className="py-0.5 text-neutral-500">
-                      {Object.entries(counts).length === 0 ? 'none' : Object.entries(counts).map(([t, n]) => `${t} ${n}`).join(', ')}
+                    <td data-testid={`calls-${seat}`} className="py-0.5 text-neutral-500">
+                      {rows.length === 0 ? 'none' : rows.map(([t, n]) => `${t} ${n}`).join(', ')}
                     </td>
                   </tr>
                 );
