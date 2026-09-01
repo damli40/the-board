@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolRegistry } from './registry';
 import { Ledger } from './ledger';
 import { FakeModelContext } from './fakeModelContext';
-import { NEVER_GRANTED, TOOLS, LIFETIME_WINDOW, PHASE_ORDER, bareToolName, registeredToolName, type Lifetime } from './tools';
+import { NEVER_GRANTED, OBSERVER_LABEL, OBSERVER_ORIGIN, TOOLS, LIFETIME_WINDOW, PHASE_ORDER, bareToolName, registeredToolName, type Lifetime } from './tools';
 import type { Phase } from '../model/types';
 
 const LIFETIMES: Lifetime[] = ['filing', 'partyObject', 'boardRead', 'verdictDraft', 'appealA', 'appealB'];
@@ -448,6 +448,54 @@ describe('ToolRegistry', () => {
       await tool.execute({});
       await tool.execute({});
       expect(registry.observerManifest().granted[0].used).toBe(2);
+    });
+
+    // Fix round 2, Minor: the label used to be a literal string, imported
+    // separately from OBSERVER_ORIGIN — nothing here caught a rename of the
+    // constant drifting out of sync with the literal. Asserts they are the
+    // same value, not just the same text today.
+    it('labels its manifest with the real OBSERVER_LABEL constant, not a hardcoded copy', async () => {
+      await registry.openObserver(() => ({}));
+      expect(registry.observerManifest().label).toBe(OBSERVER_LABEL);
+    });
+
+    // Fix round 2, C1: `observerFailures` was written and read nowhere. A
+    // browser refusal of the no-`exposedTo` registration must be readable —
+    // this is the state that used to render as "the design," not a failure.
+    describe('when the browser refuses the registration', () => {
+      function refuseReadBoard() {
+        vi.spyOn(mc, 'registerTool').mockImplementation(async () => {
+          const err = new Error("Permissions-Policy 'tools' does not allow this document");
+          err.name = 'NotAllowedError';
+          throw err;
+        });
+      }
+
+      it('is reported by observerRegistrationFailures, not swallowed', async () => {
+        refuseReadBoard();
+        await registry.openObserver(() => ({}));
+        const failures = registry.observerRegistrationFailures();
+        expect(failures).toHaveLength(1);
+        expect(failures[0].tool).toBe('read_board');
+        expect(failures[0].origin).toBe(OBSERVER_ORIGIN);
+        expect(failures[0].reason).toContain('Permissions-Policy');
+      });
+
+      it('grants nothing, so the manifest is genuinely empty rather than claiming a refused tool', async () => {
+        refuseReadBoard();
+        await registry.openObserver(() => ({}));
+        expect(registry.observerManifest().granted).toEqual([]);
+      });
+
+      it('does not reject openObserver itself, so the page still comes up', async () => {
+        refuseReadBoard();
+        await expect(registry.openObserver(() => ({}))).resolves.toBeUndefined();
+      });
+    });
+
+    it('reports nothing when the registration succeeds — the normal case', async () => {
+      await registry.openObserver(() => ({}));
+      expect(registry.observerRegistrationFailures()).toEqual([]);
     });
   });
 });

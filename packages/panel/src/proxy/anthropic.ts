@@ -18,8 +18,55 @@
 //
 // The panel's contract is deliberately unchanged. `loop.ts` is tested and
 // reviewed; the translation belongs at the boundary, which is here.
-import type Anthropic from '@anthropic-ai/sdk';
+//
+// RULING 3 (task 1, docs/superpowers/plans/2026-08-31-the-board-finish.md):
+// `@anthropic-ai/sdk` is no longer a dependency of this package. Every
+// provider now goes over plain `fetch` (see handler.ts), which is what makes
+// them uniform, and keeping a ~1MB package installed for four type aliases
+// this file used only for typing was not worth it. The four interfaces below
+// replace `import type Anthropic from '@anthropic-ai/sdk'` — they declare
+// only the shape this file actually reads or writes, not the SDK's full
+// surface. `anthropic.test.ts`'s recorded fixtures are still what would
+// catch drift from the real API: they assert against literal response
+// bodies, not against a package's own type declarations, so losing the SDK's
+// types does not weaken that check.
 import { TOOLS, bareToolName } from '../../../record/src/webmcp/tools';
+
+export interface AnthropicContentBlock {
+  type: string;
+  text?: string;
+  name?: string;
+  input?: unknown;
+  [key: string]: unknown;
+}
+
+export interface AnthropicMessage {
+  content: AnthropicContentBlock[];
+  stop_reason?: string | null;
+  stop_details?: { category?: string | null; [key: string]: unknown } | null;
+  usage?: { output_tokens?: number | null; [key: string]: unknown } | null;
+  [key: string]: unknown;
+}
+
+export interface AnthropicMessageParam {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface AnthropicTool {
+  name: string;
+  description?: string;
+  input_schema: Record<string, unknown>;
+}
+
+export interface AnthropicMessageCreateParams {
+  model: string;
+  max_tokens: number;
+  output_config?: { effort: string };
+  messages: AnthropicMessageParam[];
+  system?: string;
+  tools?: AnthropicTool[];
+}
 
 /** What `loop.ts`'s `askModel` sends. Mirrors its `ProxyMessage`. */
 export interface PanelMessage {
@@ -117,7 +164,7 @@ const SCHEMA_BY_NAME: Record<string, unknown> = Object.fromEntries(
  */
 const UNKNOWN_TOOL_SCHEMA = { type: 'object' as const, properties: {} };
 
-export function schemaFor(name: string): Anthropic.Tool['input_schema'] {
+export function schemaFor(name: string): Record<string, unknown> {
   // Tools arrive registered per actor (a__file_exhibit); the catalogue is
   // keyed by the bare name.
   const schema = SCHEMA_BY_NAME[bareToolName(name)];
@@ -125,7 +172,7 @@ export function schemaFor(name: string): Anthropic.Tool['input_schema'] {
   // `ToolSpec.inputSchema` is declared as `object` in webmcp/tools.ts, so a
   // cast is unavoidable here. Every entry in that file is built by the same
   // `obj(props, required)` helper, which produces exactly this shape.
-  return schema as Anthropic.Tool['input_schema'];
+  return schema as Record<string, unknown>;
 }
 
 /** True when the catalogue has no schema for this name. Callers log it. */
@@ -167,8 +214,8 @@ export function parsePanelRequest(raw: string | null | undefined): PanelRequest 
  * never emitted, would be fabricating model output into the record, which
  * this project cannot do.
  */
-export function toApiMessages(messages: PanelMessage[]): Anthropic.MessageParam[] {
-  const out: Anthropic.MessageParam[] = [];
+export function toApiMessages(messages: PanelMessage[]): AnthropicMessageParam[] {
+  const out: AnthropicMessageParam[] = [];
 
   for (const m of messages) {
     const content = typeof m.content === 'string' ? m.content.trim() : '';
@@ -192,7 +239,7 @@ export function toApiMessages(messages: PanelMessage[]): Anthropic.MessageParam[
   return out;
 }
 
-export function toApiTools(tools: PanelTool[]): Anthropic.Tool[] {
+export function toApiTools(tools: PanelTool[]): AnthropicTool[] {
   return tools.map((t) => ({
     name: t.name,
     description: t.description,
@@ -209,11 +256,11 @@ export interface AdapterOptions {
 export function toMessagesRequest(
   request: PanelRequest,
   options: AdapterOptions = {}
-): Anthropic.MessageCreateParamsNonStreaming {
+): AnthropicMessageCreateParams {
   const messages = toApiMessages(request.messages ?? []);
   const tools = toApiTools(request.tools ?? []);
 
-  const params: Anthropic.MessageCreateParamsNonStreaming = {
+  const params: AnthropicMessageCreateParams = {
     model: options.model ?? DEFAULT_MODEL,
     max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
     output_config: { effort: EFFORT },
@@ -234,7 +281,7 @@ export function toMessagesRequest(
  * `loop.ts` already expects. Every branch below is pinned by a recorded
  * response in `anthropic.test.ts`.
  */
-export function toProxyPlan(response: Anthropic.Message): ProxyPlan {
+export function toProxyPlan(response: AnthropicMessage): ProxyPlan {
   // A safety refusal is HTTP 200 with `stop_reason: "refusal"`, and it does not
   // throw, so it has to be checked before the content is read. Named as a
   // MODEL refusal, deliberately NOT with this project's `REFUSED:` prefix:
@@ -244,16 +291,21 @@ export function toProxyPlan(response: Anthropic.Message): ProxyPlan {
   // something.
   if (response.stop_reason === 'refusal') {
     const category = response.stop_details?.category ?? 'unspecified';
-    return { message: `MODEL DECLINED (${category}): no tool was called and no answer was produced.` };
+    return { message: modelDeclinedMessage(category) };
   }
 
   const texts: string[] = [];
   const calls: { name: string; arguments?: Record<string, unknown> }[] = [];
 
   for (const block of response.content) {
-    if (block.type === 'text') {
+    // `typeof ... === 'string'` guards (rather than trusting the `type`
+    // discriminant alone) narrow `text`/`name` from `string | undefined` to
+    // `string`: this flat local interface has no discriminated union to
+    // narrow through the way the real SDK's `ContentBlock` union did, since
+    // it exists only to describe what this file reads, not the full API.
+    if (block.type === 'text' && typeof block.text === 'string') {
       texts.push(block.text);
-    } else if (block.type === 'tool_use') {
+    } else if (block.type === 'tool_use' && typeof block.name === 'string') {
       calls.push({
         name: block.name,
         arguments: (block.input ?? {}) as Record<string, unknown>,
@@ -269,11 +321,7 @@ export function toProxyPlan(response: Anthropic.Message): ProxyPlan {
   // that succeeds and means the wrong thing, which is worse than a failure.
   // Dropped and reported instead.
   if (response.stop_reason === 'max_tokens') {
-    return {
-      message:
-        `the model's turn was cut off at the ${response.usage?.output_tokens ?? '?'}-token output cap` +
-        (calls.length > 0 ? `, mid-call to ${calls.map((c) => c.name).join(', ')}; the call was discarded rather than run with truncated arguments` : ''),
-    };
+    return { message: truncationMessage(calls.map((c) => c.name), response.usage?.output_tokens ?? undefined) };
   }
 
   const plan: ProxyPlan = {};
@@ -289,4 +337,67 @@ export function toProxyPlan(response: Anthropic.Message): ProxyPlan {
   }
 
   return plan;
+}
+
+// ---------------------------------------------------------------------------
+// The uniform pair (task 1, §1b). `handler.ts` dispatches across three
+// providers by `ProviderDef.wire`, calling the same two functions on
+// whichever one is live — a request builder returning `{path, body}` rather
+// than a typed SDK request, and a response parser taking `unknown` rather
+// than a typed SDK response, so handler.ts never needs to know which
+// provider it is holding. `openai.ts` and `google.ts` export exactly this
+// pair under the names `toRequest`/`toProxyPlan`; this file can't reuse
+// those names — `toMessagesRequest`/`toProxyPlan` above are already exported
+// under names `anthropic.test.ts` depends on (ruling 3) — so these two are
+// thin wrappers around the existing, tested functions, added alongside them
+// rather than replacing them.
+// ---------------------------------------------------------------------------
+
+export function toRequest(
+  request: PanelRequest,
+  opts: { model: string; maxTokens?: number }
+): { path: string; body: unknown } {
+  const body = toMessagesRequest(request, { model: opts.model, maxTokens: opts.maxTokens });
+  return { path: '/v1/messages', body };
+}
+
+export function toProxyPlanRaw(raw: unknown): ProxyPlan {
+  return toProxyPlan(raw as AnthropicMessage);
+}
+
+// ---------------------------------------------------------------------------
+// Shared wording (fix round 1, I6/M5). All three adapters hit the same two
+// situations — a truncated turn (Anthropic's `stop_reason: 'max_tokens'`,
+// OpenAI's `finish_reason: 'length'`, Google's `finishReason: 'MAX_TOKENS'`)
+// and a model declining to answer (Anthropic's `stop_reason: 'refusal'`,
+// OpenAI's `finish_reason: 'content_filter'`, Google's `finishReason:
+// 'SAFETY' | 'PROHIBITED_CONTENT'`) — and each had grown its own
+// near-identical hand-written string. That duplication is exactly how
+// `openai.ts` and `google.ts` drifted from each other's wording in the first
+// place (I6). One function per situation, used by all three.
+// ---------------------------------------------------------------------------
+
+/**
+ * The output cap cut the model off mid-turn. `tokenCap` is optional because
+ * only Anthropic's response conveniently reports the count that was hit;
+ * OpenAI's and Google's minimal response shapes here don't carry it, and
+ * inventing a number would be worse than omitting it.
+ */
+export function truncationMessage(callNames: string[], tokenCap?: number): string {
+  const cap = tokenCap !== undefined ? ` at the ${tokenCap}-token output cap` : ' at the output cap';
+  const mid =
+    callNames.length > 0
+      ? `, mid-call to ${callNames.join(', ')}; the call was discarded rather than run with truncated arguments`
+      : '';
+  return `the model's turn was cut off${cap}${mid}`;
+}
+
+/**
+ * A model declining is a different event from the boundary refusing — see
+ * `toProxyPlan`'s own comment on why this is never prefixed `REFUSED:`. This
+ * is HTTP 200 in every wire format: the model chose not to answer, which is
+ * not the same failure as a truncated turn or a malformed tool call.
+ */
+export function modelDeclinedMessage(category: string): string {
+  return `MODEL DECLINED (${category}): no tool was called and no answer was produced.`;
 }

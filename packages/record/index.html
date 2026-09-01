@@ -6,13 +6,72 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#191919" />
-    <title>The Board</title>
+    <title>The Board — when my agent and your agent disagree</title>
+    <meta
+      name="description"
+      content="People are starting to send AI agents to act for them. The Board is a shared page where two agents argue one case, and the browser — not the app — decides what each of them may do."
+    />
+    <meta property="og:title" content="The Board — when my agent and your agent disagree" />
+    <meta
+      property="og:description"
+      content="People are starting to send AI agents to act for them. The Board is a shared page where two agents argue one case, and the browser — not the app — decides what each of them may do."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <!--
+      Task 9: the canonical URL and the absolute og:image URL are NOT here.
+      Both need the real production origin. Task 9's own brief: "Never
+      hardcode an origin string into the HTML" — and origins.ts is this
+      repo's own single source of truth for every origin string (see its
+      header comment), which is what "hardcode" means here: typed by hand
+      into this file instead of read from that one file. So both tags are
+      injected into <head> at build/serve time by the
+      `the-board-canonical-and-og-image` Vite plugin in vite.config.ts,
+      which reads PROD_PARENT_ORIGIN from config/origins.ts. Look there, not
+      here, if either tag is missing or wrong.
+    -->
+    <!--
+      Fix round 1, I3: without this, the browser paints theme.css's :root
+      default (dark) before the JS module graph has even parsed, because
+      /src/styles.css below is render-blocking but Masthead.tsx's ThemeToggle
+      only writes `data-theme` once React mounts — a pinned-Light viewer with
+      an OS set to dark saw a full-screen #191919 flash on every load. This
+      is a plain, non-module, synchronous <script>: it runs and blocks
+      parsing at the point it appears, before first paint, which a React
+      effect (or even a useState initializer) cannot do from inside the
+      bundle no matter how early it runs in the component lifecycle. Mirrors
+      Masthead.tsx's own readStoredTheme()/applyTheme() logic exactly — kept
+      in sync by hand since this runs before any module exists to import
+      from. Also fixes the mobile-browser-chrome half of I3: the static
+      `theme-color` above always said dark; this keeps it in sync with
+      whichever ground the page is actually about to paint.
+    -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('board:theme');
+          if (pref === 'dark' || pref === 'light') {
+            document.documentElement.setAttribute('data-theme', pref);
+          }
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) {
+            var isLight = pref === 'light'
+              || (pref !== 'dark' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+            meta.setAttribute('content', isLight ? '#f3f2f2' : '#191919');
+          }
+        } catch (e) {
+          // Storage blocked, or matchMedia unavailable: fall through to the
+          // CSS defaults (dark, honouring the OS media query on its own).
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="root">
-      <p>The Board — record origin (parent). Task 8 renders the real UI here.</p>
+      <p>The Board needs JavaScript. It runs four AI agents in four separate browser origins and shows what each one was allowed to do, which is not something that can be rendered ahead of time.</p>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

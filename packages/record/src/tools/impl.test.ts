@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createToolImpl, withTruncation, type ToolImplDeps } from './impl';
+import { Refusal } from '../webmcp/ledger';
 import { ExhibitStore } from '../model/exhibits';
 import { FactStore } from '../model/facts';
 import { Receipts, AssessmentStore } from '../model/receipts';
@@ -216,6 +217,193 @@ describe('createToolImpl', () => {
       expect(result.id).toBe('E1');
       expect(ctx.receipts.hasOpened('seat2', 'E1')).toBe(true);
       expect(ctx.receipts.hasOpened('seat1', 'E1')).toBe(false);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // Task 5, fix round 1, C1/C2: every deliberate guard in this file throws
+  // `Refusal`, never a plain `Error` — that is what lets `Ledger.wrap` mark
+  // it before it crosses to the panel, and what lets the panel tell "the
+  // record refused this on purpose" apart from a genuine crash. This is not
+  // provable by message-substring assertions alone (a `Refusal`'s message
+  // reads identically to a plain `Error`'s) — it has to check the actual
+  // class of what was thrown.
+  // -------------------------------------------------------------------
+  describe('every deliberate guard throws Refusal, not a plain Error (fix round 1, C1/C2)', () => {
+    async function caught(fn: () => Promise<unknown>): Promise<unknown> {
+      try {
+        await fn();
+        throw new Error('expected a throw, got none');
+      } catch (err) {
+        return err;
+      }
+    }
+
+    it('actorFor: an unrecognised origin', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.file_exhibit({ name: 'x', kind: 'text', content: 'y' }, 'https://not-a-real-origin.example'));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('requireSide: a seat calling a party-only tool', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.file_exhibit({ name: 'x', kind: 'text', content: 'y' }, ORIGIN.seat1));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('requireSeat: a party calling a seat-only tool', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.record_assessment({}, ORIGIN.A));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('dispute: the self-dealing guard', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'text', name: 'a.txt', bytes: bytes('x'), filedAt: '2026-08-20T09:00:00Z' });
+      ctx.facts.file({ side: 'A', text: 'x', points: { exhibitId: 'E1', locator: {} } });
+      const impl = createToolImpl(ctx.deps);
+      await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.A);
+      const err = await caught(() => impl.dispute({ factId: 'F1', exhibitId: 'E1', quote: 'x', because: 'y' }, ORIGIN.A));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('object: an empty objection', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.object({ text: '' }, ORIGIN.A));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('open_exhibit: a phantom exhibit id', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.open_exhibit({ exhibitId: 'E404' }, ORIGIN.seat1));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('extract_text: the read-receipt gate', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'pdf', name: 'p.pdf', bytes: bytes(''), filedAt: '2026-08-20T09:00:00Z', pages: ['one'] });
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.extract_text({ exhibitId: 'E1', page: 1 }, ORIGIN.seat1));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('extract_text: a non-pdf exhibit', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'text', name: 't.txt', bytes: bytes('hello'), filedAt: '2026-08-20T09:00:00Z' });
+      const impl = createToolImpl(ctx.deps);
+      await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat1);
+      const err = await caught(() => impl.extract_text({ exhibitId: 'E1', page: 1 }, ORIGIN.seat1));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    // -------------------------------------------------------------------
+    // Fix round 2, N8: the round-1 describe block above asserted
+    // `instanceof Refusal` on 8 of impl.ts's 11 converted throw sites; the
+    // report claimed all 11 without these three. Closing that gap for
+    // real, not just correcting the number in prose.
+    // -------------------------------------------------------------------
+    it('dispute: no such fact', async () => {
+      const impl = createToolImpl(ctx.deps);
+      const err = await caught(() => impl.dispute({ factId: 'F999', exhibitId: 'E1', quote: 'x', because: 'y' }, ORIGIN.A));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('extract_text: the 1-based page guard', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'pdf', name: 'p.pdf', bytes: bytes(''), filedAt: '2026-08-20T09:00:00Z', pages: ['one', 'two'] });
+      const impl = createToolImpl(ctx.deps);
+      await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat1);
+      const err = await caught(() => impl.extract_text({ exhibitId: 'E1', page: 0 }, ORIGIN.seat1));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+
+    it('extract_text: has no page N', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'pdf', name: 'p.pdf', bytes: bytes(''), filedAt: '2026-08-20T09:00:00Z', pages: ['one'] });
+      const impl = createToolImpl(ctx.deps);
+      await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat1);
+      const err = await caught(() => impl.extract_text({ exhibitId: 'E1', page: 5 }, ORIGIN.seat1));
+      expect(err).toBeInstanceOf(Refusal);
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // Recovery-clause round (finish task, scope extension): the brief's own
+  // trap is "never name a tool the refused actor does not hold in that
+  // phase" — pinning the exact clause text here, not just the class, is
+  // what actually proves that. Also proves the byte-identical requirement
+  // between this file's own guards and their model/ counterparts.
+  // -------------------------------------------------------------------
+  describe('recovery clauses (finish task, scope extension)', () => {
+    it('open_exhibit: no such exhibit — names no tool, matches model/disputes.ts and model/receipts.ts', async () => {
+      const impl = createToolImpl(ctx.deps);
+      await expect(impl.open_exhibit({ exhibitId: 'E404' }, ORIGIN.seat1))
+        .rejects.toThrow('no such exhibit: E404; use an exhibit id that was actually filed');
+    });
+
+    it('extract_text: has not opened — names open_exhibit, held by seat1/seat2 in boardRead', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'pdf', name: 'p.pdf', bytes: bytes(''), filedAt: '2026-08-20T09:00:00Z', pages: ['one'] });
+      const impl = createToolImpl(ctx.deps);
+      await expect(impl.extract_text({ exhibitId: 'E1', page: 1 }, ORIGIN.seat1))
+        .rejects.toThrow('seat1 has not opened E1; call open_exhibit first');
+    });
+
+    it('extract_text: no such exhibit — same canonical string as open_exhibit', async () => {
+      const impl = createToolImpl(ctx.deps);
+      // Bypasses the has-not-opened guard directly (Receipts.markOpened
+      // performs no existence check of its own — see its own doc comment)
+      // to reach extract_text's OWN "no such exhibit" guard specifically.
+      ctx.receipts.markOpened('seat1', 'E404');
+      await expect(impl.extract_text({ exhibitId: 'E404', page: 1 }, ORIGIN.seat1))
+        .rejects.toThrow('no such exhibit: E404; use an exhibit id that was actually filed');
+    });
+
+    it('extract_text: has no page N — worded for its own bare `page` argument, not quote.ts locator language', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'pdf', name: 'p.pdf', bytes: bytes(''), filedAt: '2026-08-20T09:00:00Z', pages: ['one'] });
+      const impl = createToolImpl(ctx.deps);
+      await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.seat1);
+      await expect(impl.extract_text({ exhibitId: 'E1', page: 5 }, ORIGIN.seat1))
+        .rejects.toThrow('E1 has no page 5; check the page number against the exhibit');
+    });
+
+    it('requireSide: names who CAN act (A or B), not a tool the wrong-kind actor cannot hold', async () => {
+      const impl = createToolImpl(ctx.deps);
+      await expect(impl.file_exhibit({ name: 'x', kind: 'text', content: 'y' }, ORIGIN.seat1))
+        .rejects.toThrow('seat1 is not a party and cannot do this; only A or B can');
+    });
+
+    it('requireSeat: names who CAN act (seat1 or seat2)', async () => {
+      const impl = createToolImpl(ctx.deps);
+      await expect(impl.record_assessment({}, ORIGIN.A))
+        .rejects.toThrow('A is not a seat and cannot do this; only seat1 or seat2 can');
+    });
+
+    it('dispute: no such fact — byte-identical to model/facts.ts own guard', async () => {
+      const impl = createToolImpl(ctx.deps);
+      await expect(impl.dispute({ factId: 'F999', exhibitId: 'E1', quote: 'x', because: 'y' }, ORIGIN.A))
+        .rejects.toThrow('no such fact: F999; use a fact id that was actually filed');
+    });
+
+    it('dispute: the self-dealing pre-check names the other side, byte-identical to model/facts.ts', async () => {
+      await ctx.exhibits.add({ side: 'A', kind: 'text', name: 'a.txt', bytes: bytes('x'), filedAt: '2026-08-20T09:00:00Z' });
+      ctx.facts.file({ side: 'A', text: 'x', points: { exhibitId: 'E1', locator: {} } });
+      const impl = createToolImpl(ctx.deps);
+      await impl.open_exhibit({ exhibitId: 'E1' }, ORIGIN.A);
+      await expect(impl.dispute({ factId: 'F1', exhibitId: 'E1', quote: 'x', because: 'y' }, ORIGIN.A))
+        .rejects.toThrow('cannot dispute your own fact; only B can dispute it');
+    });
+
+    // Direct proof of the consistency requirement itself: this file's own
+    // "no such fact" and "cannot dispute your own fact" guards produce the
+    // EXACT SAME string FactStore's do for the same inputs — not just two
+    // strings that happen to look alike today. A reader cannot tell which
+    // layer refused a call, so nothing may depend on which one it was.
+    it('the dispute pre-check messages are byte-identical to FactStore, not just similar', () => {
+      const fresh = new FactStore();
+      const f = fresh.file({ side: 'A' as const, text: 'x', points: { exhibitId: 'E1', locator: {} } });
+
+      let storeNoSuchFact = '';
+      try { fresh.concede('F9', 'B'); } catch (e) { storeNoSuchFact = (e as Error).message; }
+      let storeSelfDeal = '';
+      try { fresh.dispute(f.id, 'A'); } catch (e) { storeSelfDeal = (e as Error).message; }
+
+      expect(storeNoSuchFact).toBe('no such fact: F9; use a fact id that was actually filed');
+      expect(storeSelfDeal).toBe('cannot dispute your own fact; only B can dispute it');
     });
   });
 

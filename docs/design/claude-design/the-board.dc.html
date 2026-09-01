@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/modernist-c1d3f13d-25cd-4e0f-a92c-d982525643a7/styles.css">
+<script src="_ds/modernist-c1d3f13d-25cd-4e0f-a92c-d982525643a7/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Token carrier. Two palettes, dark first, because the product shipped dark.
+     Media-query and attribute-scoped custom properties cannot be expressed inline. */
+  :root, .tb-root {
+    --tb-ground:#191919;
+    --tb-ground-2:#212020;
+    --tb-ground-3:#2a2827;
+    --tb-ink:#f3f2f2;
+    --tb-ink-2:rgba(243,242,242,.68);
+    --tb-ink-3:rgba(243,242,242,.62);
+    --tb-rule:rgba(243,242,242,.9);
+    --tb-rule-2:rgba(243,242,242,.22);
+    --tb-rule-3:rgba(243,242,242,.13);
+    --tb-panel:#0f0f0f;
+    --tb-panel-2:#080808;
+    --tb-amber:#eea33d;
+    --tb-amber-ink:#191919;
+    --tb-red:#ec3013;
+    --tb-never:#e5aa5e;
+    --tb-link:#eea33d;
+    --tb-field:#0f0f0f;
+    --tb-broke-ink:#f3f2f2;
+  }
+  @media (prefers-color-scheme: light) {
+    :root, .tb-root {
+      --tb-ground:#f3f2f2;
+      --tb-ground-2:#eae8e6;
+      --tb-ground-3:#e0ddda;
+      --tb-ink:#201e1d;
+      --tb-ink-2:rgba(32,30,29,.68);
+      --tb-ink-3:rgba(32,30,29,.66);
+      --tb-rule:#201e1d;
+      --tb-rule-2:rgba(32,30,29,.24);
+      --tb-rule-3:rgba(32,30,29,.14);
+      --tb-panel:#191919;
+      --tb-panel-2:#0f0f0f;
+      --tb-never:#8a4a06;
+      --tb-link:#8a4a06;
+      --tb-field:#f3f2f2;
+      --tb-broke-ink:#201e1d;
+    }
+  }
+  .tb-root[data-theme="dark"] {
+    --tb-ground:#191919; --tb-ground-2:#212020; --tb-ground-3:#2a2827;
+    --tb-ink:#f3f2f2; --tb-ink-2:rgba(243,242,242,.68); --tb-ink-3:rgba(243,242,242,.62);
+    --tb-rule:rgba(243,242,242,.9); --tb-rule-2:rgba(243,242,242,.22); --tb-rule-3:rgba(243,242,242,.13);
+    --tb-panel:#0f0f0f; --tb-panel-2:#080808;
+    --tb-never:#e5aa5e; --tb-link:#eea33d; --tb-field:#0f0f0f; --tb-broke-ink:#f3f2f2;
+  }
+  .tb-root[data-theme="light"] {
+    --tb-ground:#f3f2f2; --tb-ground-2:#eae8e6; --tb-ground-3:#e0ddda;
+    --tb-ink:#201e1d; --tb-ink-2:rgba(32,30,29,.68); --tb-ink-3:rgba(32,30,29,.66);
+    --tb-rule:#201e1d; --tb-rule-2:rgba(32,30,29,.24); --tb-rule-3:rgba(32,30,29,.14);
+    --tb-panel:#191919; --tb-panel-2:#0f0f0f;
+    --tb-never:#8a4a06; --tb-link:#8a4a06; --tb-field:#f3f2f2; --tb-broke-ink:#201e1d;
+  }
+  body { margin:0; background:var(--tb-ground); }
+  /* Fixed-count rows. Track counts are explicit so a set of four can never
+     resolve to three tracks and leave an unfilled row: 4 to 2 to 1, and the
+     three-up record row goes 3 to 1. Cannot be expressed inline. */
+  .tb-cols4 { grid-template-columns:repeat(4,minmax(0,1fr)); }
+  @media (max-width:1199px) { .tb-cols4 { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+  @media (max-width:619px) { .tb-cols4 { grid-template-columns:minmax(0,1fr); } }
+  .tb-cols3 { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  @media (max-width:1099px) { .tb-cols3 { grid-template-columns:minmax(0,1fr); } }
+  a { color:var(--tb-link); text-decoration:underline; text-underline-offset:2px; }
+  a:hover { color:var(--tb-ink); }
+  @keyframes tb-run { 0% { background-position:0 0 } 100% { background-position:24px 0 } }
+  @keyframes tb-caret { 0%,49% { opacity:1 } 50%,100% { opacity:0 } }
+</style>
+</helmet>
+
+<div class="tb-root" data-theme="{{ themeAttr }}" style="min-height:100vh;font-family:var(--font-body,Archivo),system-ui,sans-serif;color:var(--tb-ink);background:var(--tb-ground);padding:0 0 64px">
+
+  <!-- masthead -->
+  <div style="display:flex;flex-wrap:wrap;gap:32px;justify-content:space-between;align-items:flex-end;padding:clamp(20px,3vw,32px) clamp(16px,2.6vw,40px) 20px;border-bottom:2px solid var(--tb-rule)">
+    <div style="display:flex;gap:20px;align-items:flex-start;min-width:min(100%,420px);flex:1 1 520px">
+      <svg width="30" height="62" viewBox="0 0 34 70" style="flex:none;margin-top:5px;color:var(--tb-ink)" aria-hidden="true">
+        <circle cx="17" cy="17" r="16" fill="currentColor"></circle>
+        <circle cx="17" cy="53" r="14.6" fill="none" stroke="currentColor" stroke-width="2.88"></circle>
+      </svg>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <h1 style="margin:0;font-family:var(--font-heading,Archivo),sans-serif;font-size:clamp(30px,3.4vw,44px);line-height:1;font-weight:700;letter-spacing:-0.02em">The Board</h1>
+        <p style="margin:0;max-width:64ch;font-size:clamp(15px,1.15vw,16.5px);line-height:1.45;text-wrap:pretty">People are starting to send AI agents to act for them. The Board is what happens when my agent and your agent want opposite things: both get a seat, both work from the same file, and every move either one makes is written down here where the other side can read it.</p>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;line-height:1.5;color:var(--tb-ink-3)">
+      <div>record &nbsp;&nbsp;&nbsp;{{ recordOrigin }}</div>
+      <div>build &nbsp;&nbsp;&nbsp;&nbsp;{{ envLabel }}</div>
+      <div>case &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2026-0830-04</div>
+      <div>clock &nbsp;&nbsp;&nbsp;&nbsp;30 Aug 2026, 14:02 to 14:41</div>
+    </div>
+  </div>
+
+  <!-- phase rail -->
+  <div style="display:flex;flex-wrap:wrap;align-items:stretch;border-bottom:2px solid var(--tb-rule)">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));flex:1 1 640px">
+      <sc-for list="{{ phaseRail }}" as="p" hint-placeholder-count="4">
+        <button type="button" onClick="{{ p.onClick }}" aria-current="{{ p.ariaCurrent }}" style="all:unset;cursor:pointer;display:flex;flex-direction:column;gap:5px;padding:15px 20px 14px;border-right:1px solid var(--tb-rule-3);background:none;box-sizing:border-box" style-hover="background:var(--tb-ground-2)" style-focus="outline:2px solid var(--tb-amber);outline-offset:-2px">
+          <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+            <sc-if value="{{ p.done }}" hint-placeholder-val="{{ true }}">
+              <svg width="11" height="11" viewBox="0 0 22 22" style="flex:none;color:var(--tb-ink)" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="currentColor"></circle></svg>
+            </sc-if>
+            <sc-if value="{{ p.pending }}" hint-placeholder-val="{{ false }}">
+              <svg width="11" height="11" viewBox="0 0 22 22" style="flex:none;color:var(--tb-ink-3)" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>
+            </sc-if>
+            <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase">{{ p.label }}</span>
+            <sc-if value="{{ p.current }}" hint-placeholder-val="{{ true }}">
+              <span style="font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;background:var(--tb-ink);color:var(--tb-ground);padding:2px 6px">now</span>
+            </sc-if>
+          </div>
+          <span style="font-size:13px;color:var(--tb-ink-2)">{{ p.sub }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;padding:10px clamp(16px,2.6vw,40px) 10px 20px">
+      <button type="button" onClick="{{ advance }}" style="all:unset;cursor:pointer;box-sizing:border-box;min-height:44px;display:flex;align-items:center;gap:12px;background:var(--tb-ink);color:var(--tb-ground);padding:11px 18px;font-family:var(--font-body,Archivo),sans-serif;font-size:14px;font-weight:600;text-align:left" style-hover="background:var(--tb-ink-2)" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">
+        <span>{{ advanceLabel }}</span>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" style="flex:none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- browser refusal banner: the one place red runs as a field -->
+  <sc-if value="{{ bannerOn }}" hint-placeholder-val="{{ false }}">
+    <div role="status" style="background:var(--tb-red);color:#fff;padding:20px clamp(16px,2.6vw,40px);border-bottom:2px solid var(--tb-rule)">
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:start">
+        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;font-weight:600;letter-spacing:.1em;background:#fff;color:var(--tb-red);padding:4px 8px;white-space:nowrap">BROWSER REFUSED A HANDOVER</span>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <p style="margin:0;font-size:16px;font-weight:600;line-height:1.35">Two agents may be holding no tools at all. Do not read this page as a boundary working.</p>
+          <p style="margin:0;font-size:14px;line-height:1.5;max-width:100ch">The record tried to hand tools to two frames and the browser would not complete the handover. Refused is not the same as not handed over: not handed over means the record kept a tool back on purpose, refused means the browser blocked a handover the record intended.</p>
+          <p style="margin:0;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;line-height:1.7;padding-top:4px">14:02:11 &nbsp;register({{ seat1Origin }}) &nbsp;refused<br>14:02:11 &nbsp;register({{ seat2Origin }}) &nbsp;refused</p>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- double prompt bar -->
+  <div style="display:flex;flex-wrap:wrap;gap:16px 24px;align-items:center;padding:16px clamp(16px,2.6vw,40px);border-bottom:2px solid var(--tb-rule);background:var(--tb-ground-2)">
+    <div style="display:flex;flex-direction:column;gap:3px;flex:1 1 260px">
+      <span style="font-size:14px;font-weight:700">One instruction, both advocates</span>
+      <span style="font-size:13px;color:var(--tb-ink-2);line-height:1.4">The same words reach Advocate A and Advocate B in the same moment.</span>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex:3 1 420px">
+      <label for="tb-double" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Instruction for both advocates</label>
+      <input id="tb-double" type="text" value="{{ doublePrompt }}" onChange="{{ onDoublePrompt }}" placeholder="Ask both advocates the same question, in the same words" style="flex:1;min-width:0;box-sizing:border-box;border:2px solid var(--tb-rule);background:var(--tb-field);padding:11px 13px;font-family:var(--font-body,Archivo),sans-serif;font-size:14px;color:var(--tb-ink);border-radius:0;outline:none" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">
+      <button type="button" style="all:unset;cursor:pointer;box-sizing:border-box;min-height:44px;display:flex;align-items:center;background:var(--tb-amber);color:var(--tb-amber-ink);padding:11px 20px;font-size:14px;font-weight:700;border:2px solid var(--tb-rule);white-space:nowrap" style-hover="background:#d98f2b" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">Send to both</button>
+    </div>
+  </div>
+
+  <!-- manifests -->
+  <div style="padding:26px clamp(16px,2.6vw,40px) 30px;border-bottom:2px solid var(--tb-rule)">
+    <div style="display:flex;flex-wrap:wrap;gap:20px 32px;justify-content:space-between;align-items:flex-end;margin-bottom:16px">
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <h2 style="margin:0;font-family:var(--font-heading,Archivo),sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em">What each agent may call</h2>
+        <p style="margin:0;font-size:14px;line-height:1.45;max-width:96ch;color:var(--tb-ink-2)">Every row is one tool in the registry, all fourteen, in the same order for all four agents. Both marks come from the same registry call, so what an agent holds and what it does not hold cannot disagree.</p>
+      </div>
+      <div style="display:flex;gap:22px;align-items:center;flex-wrap:wrap;padding-bottom:2px">
+        <span style="display:flex;align-items:center;gap:8px;font-size:13px"><svg width="11" height="11" viewBox="0 0 22 22" style="color:var(--tb-ink)" aria-hidden="true"><circle cx="11" cy="11" r="10" fill="currentColor"></circle></svg>handed over</span>
+        <span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tb-ink-2)"><svg width="11" height="11" viewBox="0 0 22 22" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>not handed over</span>
+      </div>
+    </div>
+
+    <!-- default treatment: one tool per row, marked, per agent -->
+    <sc-if value="{{ isListTreatment }}" hint-placeholder-val="{{ true }}">
+      <div class="tb-cols4" style="display:grid;border-top:2px solid var(--tb-rule);border-left:2px solid var(--tb-rule);align-items:stretch">
+        <sc-for list="{{ manifests }}" as="m" hint-placeholder-count="4">
+          <div style="min-width:0;display:flex;flex-direction:column;border-right:2px solid var(--tb-rule);border-bottom:2px solid var(--tb-rule);padding:14px 16px 8px;box-sizing:border-box">
+            <div style="display:flex;align-items:center;gap:9px;margin-bottom:3px">
+              <span style="width:10px;height:10px;flex:none;background:{{ m.hue }}"></span>
+              <h3 style="margin:0;font-size:14px;font-weight:700">{{ m.name }}</h3>
+            </div>
+            <div style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;color:var(--tb-ink-3);margin-bottom:12px;word-break:break-all">{{ m.origin }}</div>
+            <sc-if value="{{ m.holdsNothing }}" hint-placeholder-val="{{ false }}">
+              <p style="margin:0 0 12px;background:var(--tb-ground-2);padding:10px 12px;font-size:13px;line-height:1.45">Seats hold nothing while the advocates are filing. Tools arrive at review. This emptiness is the design, not a fault.</p>
+            </sc-if>
+            <div style="display:flex;flex-direction:column">
+              <sc-for list="{{ m.rows }}" as="r" hint-placeholder-count="14">
+                <div style="display:grid;grid-template-columns:13px 1fr;gap:9px;align-items:start;padding:5px 0;border-bottom:1px solid var(--tb-rule-3)">
+                  <div style="padding-top:3px">
+                    <sc-if value="{{ r.granted }}" hint-placeholder-val="{{ true }}">
+                      <svg width="11" height="11" viewBox="0 0 22 22" style="color:var(--tb-ink);display:block" role="img" aria-label="handed over"><circle cx="11" cy="11" r="10" fill="currentColor"></circle></svg>
+                    </sc-if>
+                    <sc-if value="{{ r.withheld }}" hint-placeholder-val="{{ false }}">
+                      <svg width="11" height="11" viewBox="0 0 22 22" style="color:var(--tb-ink-3);display:block" role="img" aria-label="not handed over"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>
+                    </sc-if>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+                    <sc-if value="{{ r.granted }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;font-weight:500;line-height:1.35;overflow-wrap:break-word;color:var(--tb-ink)">{{ r.name }}</span>
+                    </sc-if>
+                    <sc-if value="{{ r.withheld }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;font-weight:400;line-height:1.35;overflow-wrap:break-word;color:var(--tb-ink-3)">{{ r.name }}</span>
+                    </sc-if>
+                    <sc-if value="{{ r.lent }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:11px;line-height:1.3;color:var(--tb-ink-2)">lent by the page, seats only</span>
+                    </sc-if>
+                    <sc-if value="{{ r.never }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:11px;line-height:1.3;color:var(--tb-never);font-weight:600">never handed to anyone</span>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <!-- alternate treatment: one shared registry, four narrow columns -->
+    <sc-if value="{{ isMatrixTreatment }}" hint-placeholder-val="{{ false }}">
+      <div style="border:2px solid var(--tb-rule);overflow-x:auto">
+        <div style="min-width:820px">
+          <div style="display:grid;grid-template-columns:minmax(240px,1.6fr) repeat(4,1fr);background:var(--tb-ink);color:var(--tb-ground)">
+            <div style="padding:11px 16px;font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase">Tool in the registry</div>
+            <sc-for list="{{ actors }}" as="a" hint-placeholder-count="4">
+              <div style="padding:11px 14px;border-left:1px solid var(--tb-rule-2);display:flex;flex-direction:column;gap:4px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="width:10px;height:10px;flex:none;background:{{ a.hue }}"></span>
+                  <span style="font-size:13px;font-weight:700">{{ a.name }}</span>
+                </div>
+                <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;opacity:.72;word-break:break-all">{{ a.origin }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <sc-for list="{{ matrixRows }}" as="row" hint-placeholder-count="14">
+            <div style="display:grid;grid-template-columns:minmax(240px,1.6fr) repeat(4,1fr);border-top:1px solid var(--tb-rule-3);background:{{ row.bg }}">
+              <div style="padding:9px 16px;display:flex;flex-direction:column;gap:2px">
+                <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13px;font-weight:500;overflow-wrap:break-word">{{ row.name }}</span>
+                <span style="font-size:11.5px;line-height:1.35;color:var(--tb-ink-2)">{{ row.note }}</span>
+              </div>
+              <sc-for list="{{ row.cells }}" as="c" hint-placeholder-count="4">
+                <div style="padding:9px 14px;border-left:1px solid var(--tb-rule-3);display:flex;align-items:flex-start">
+                  <sc-if value="{{ c.granted }}" hint-placeholder-val="{{ true }}">
+                    <svg width="12" height="12" viewBox="0 0 22 22" style="color:var(--tb-ink);margin-top:3px" role="img" aria-label="handed over"><circle cx="11" cy="11" r="10" fill="currentColor"></circle></svg>
+                  </sc-if>
+                  <sc-if value="{{ c.withheld }}" hint-placeholder-val="{{ false }}">
+                    <svg width="12" height="12" viewBox="0 0 22 22" style="color:var(--tb-ink-3);margin-top:3px" role="img" aria-label="not handed over"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <p style="margin:14px 0 0;font-size:13px;line-height:1.5;color:var(--tb-ink-2);max-width:112ch"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px">extract_text</span> and <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px">search_exhibits</span> belong to the seats and to no one else. The page holds that machinery, runs it for a seat on request and watches while it runs. No agent, seat or advocate, ever receives the machinery itself.</p>
+  </div>
+
+  <!-- agent panels -->
+  <div style="padding:26px clamp(16px,2.6vw,40px) 30px;border-bottom:2px solid var(--tb-rule)">
+    <h2 style="margin:0 0 16px;font-family:var(--font-heading,Archivo),sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em">Four agents, four frames</h2>
+    <div class="tb-cols4" style="display:grid;gap:16px;align-items:stretch">
+      <sc-for list="{{ panels }}" as="p" hint-placeholder-count="4">
+        <div style="min-width:0;display:flex;flex-direction:column;background:var(--tb-panel);color:#f3f2f2;min-height:440px;box-sizing:border-box">
+          <div style="height:4px;background:{{ p.hue }}"></div>
+          <div style="padding:13px 16px 12px;border-bottom:1px solid rgba(243,242,242,.18);display:flex;flex-direction:column;gap:5px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+              <h3 id="{{ p.headingId }}" style="margin:0;font-size:15px;font-weight:700">{{ p.name }}</h3>
+              <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:{{ p.hue }};border:1px solid {{ p.hue }};padding:2px 6px;white-space:nowrap">{{ p.stateLabel }}</span>
+            </div>
+            <span style="font-size:12.5px;line-height:1.4;color:rgba(243,242,242,.62)">{{ p.role }}</span>
+            <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(243,242,242,.5);word-break:break-all">frame {{ p.origin }}</span>
+          </div>
+
+          <div style="position:relative;flex:1;display:flex;flex-direction:column;min-height:0">
+            <h4 id="{{ p.logLabelId }}" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0">{{ p.logLabel }}</h4>
+            <div role="log" aria-live="off" aria-labelledby="{{ p.logLabelId }}" ref="{{ p.logRef }}" onScroll="{{ p.onScroll }}" tabindex="0" style="flex:1;min-height:0;overflow-y:auto;padding:13px 16px;display:flex;flex-direction:column;gap:10px" style-focus="outline:2px solid var(--tb-amber);outline-offset:-2px">
+              <sc-if value="{{ p.isEmpty }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;gap:11px">
+                  <p style="margin:0;font-size:13px;line-height:1.5;color:rgba(243,242,242,.8);text-wrap:pretty">{{ p.emptyLine }}</p>
+                  <div style="display:flex;flex-direction:column;gap:7px">
+                    <sc-for list="{{ p.examples }}" as="ex" hint-placeholder-count="3">
+                      <button type="button" onClick="{{ ex.onClick }}" style="all:unset;cursor:pointer;box-sizing:border-box;min-height:44px;display:flex;align-items:center;border:1px solid rgba(243,242,242,.28);padding:9px 11px;font-family:var(--font-body,Archivo),sans-serif;font-size:12.5px;line-height:1.4;color:#f3f2f2;text-align:left" style-hover="border-color:var(--tb-amber);background:rgba(238,163,61,.14)" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">{{ ex.text }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+              </sc-if>
+
+              <sc-for list="{{ p.lines }}" as="l" hint-placeholder-count="0">
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <sc-if value="{{ l.isOk }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;padding:5px 0;border-bottom:1px solid rgba(243,242,242,.12)">
+                      <div style="min-width:0;display:flex;flex-direction:column;gap:2px">
+                        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:break-word">{{ l.tool }}</span>
+                        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;color:rgba(243,242,242,.5);overflow-wrap:break-word">{{ l.arg }}</span>
+                      </div>
+                      <span style="font-size:11.5px;color:rgba(243,242,242,.56);white-space:nowrap">{{ l.out }}</span>
+                    </div>
+                  </sc-if>
+
+                  <!-- running: streams into the log, which is aria-live off -->
+                  <sc-if value="{{ l.isRun }}" hint-placeholder-val="{{ false }}">
+                    <div style="border:1px solid rgba(238,163,61,.5);padding:9px 11px;display:flex;flex-direction:column;gap:7px">
+                      <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center">
+                        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:break-word">{{ l.tool }}</span>
+                        <button type="button" onClick="{{ l.onStop }}" style="all:unset;cursor:pointer;box-sizing:border-box;min-height:44px;display:flex;align-items:center;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--tb-amber);color:var(--tb-amber);padding:3px 12px;white-space:nowrap" style-hover="background:var(--tb-amber);color:#191919" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">Stop</button>
+                      </div>
+                      <p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(243,242,242,.9)">{{ l.streamed }}<span style="animation:tb-caret 1s steps(1) infinite;color:var(--tb-amber)">_</span></p>
+                      <div style="height:3px;background-image:repeating-linear-gradient(90deg,#eea33d 0 8px,transparent 8px 24px);animation:tb-run .8s linear infinite" aria-hidden="true"></div>
+                    </div>
+                  </sc-if>
+
+                  <!-- state 1 of 3: refused at the boundary. no retry. -->
+                  <sc-if value="{{ l.isRefused }}" hint-placeholder-val="{{ false }}">
+                    <div style="border-top:2px solid var(--tb-amber);border-bottom:2px solid var(--tb-amber);padding:10px 0;display:flex;flex-direction:column;gap:6px">
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <span style="font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;background:var(--tb-amber);color:#191919;padding:3px 7px">Refused at the boundary</span>
+                        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:break-word">{{ l.tool }}</span>
+                      </div>
+                      <p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(243,242,242,.86);text-wrap:pretty">{{ l.msg }}</p>
+                      <span style="font-size:11.5px;color:var(--tb-amber);font-weight:600">This is the product working. Your instruction is still in the box below.</span>
+                    </div>
+                  </sc-if>
+
+                  <!-- state 2 of 3: never handed over. no retry. -->
+                  <sc-if value="{{ l.isNotGranted }}" hint-placeholder-val="{{ false }}">
+                    <div style="border:1px dashed rgba(243,242,242,.42);padding:10px 11px;display:flex;flex-direction:column;gap:6px">
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <svg width="11" height="11" viewBox="0 0 22 22" style="color:rgba(243,242,242,.78);flex:none" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>
+                        <span style="font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;color:rgba(243,242,242,.78)">Not handed over</span>
+                        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:break-word">{{ l.tool }}</span>
+                      </div>
+                      <p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(243,242,242,.72);text-wrap:pretty">{{ l.msg }}</p>
+                    </div>
+                  </sc-if>
+
+                  <!-- state 3 of 3: something broke. the only state with a retry. -->
+                  <sc-if value="{{ l.isBroke }}" hint-placeholder-val="{{ false }}">
+                    <div style="background:rgba(243,242,242,.09);border-left:4px solid #f3f2f2;padding:10px 12px;display:flex;flex-direction:column;gap:8px">
+                      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="color:#f3f2f2;flex:none" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+                        <span style="font-size:10px;font-weight:700;letter-spacing:.11em;text-transform:uppercase">Something broke</span>
+                        <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;overflow-wrap:break-word">{{ l.tool }}</span>
+                      </div>
+                      <p style="margin:0;font-size:12.5px;line-height:1.5;color:rgba(243,242,242,.86);text-wrap:pretty">{{ l.msg }}</p>
+                      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                        <button type="button" onClick="{{ l.onRetry }}" style="all:unset;cursor:pointer;box-sizing:border-box;min-height:44px;display:flex;align-items:center;background:#f3f2f2;color:#191919;padding:6px 16px;font-size:12px;font-weight:700" style-hover="background:#d9d6d3" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">Run it again</button>
+                        <span style="font-size:11.5px;color:rgba(243,242,242,.6)">Nothing was written to the record.</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+
+            <!-- jump to latest, shown only when the reader has scrolled away -->
+            <sc-if value="{{ p.showJump }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;pointer-events:none">
+                <button type="button" onClick="{{ p.onJump }}" style="all:unset;cursor:pointer;pointer-events:auto;box-sizing:border-box;min-height:44px;background:var(--tb-amber);color:#191919;padding:6px 14px;font-size:11.5px;font-weight:700;display:flex;align-items:center;gap:7px" style-hover="background:#d98f2b" style-focus="outline:2px solid #f3f2f2;outline-offset:2px">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>
+                  <span>{{ p.jumpLabel }}</span>
+                </button>
+              </div>
+            </sc-if>
+
+            <!-- completed sentences only, announced politely, one region per party -->
+            <div role="status" aria-live="polite" aria-atomic="false" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">{{ p.announced }}</div>
+          </div>
+
+          <div style="padding:12px 16px 14px;border-top:1px solid rgba(243,242,242,.18);display:flex;flex-direction:column;gap:9px">
+            <label for="{{ p.composerId }}" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">{{ p.composerLabel }}</label>
+            <input id="{{ p.composerId }}" type="text" value="{{ p.composer }}" onChange="{{ p.onCompose }}" placeholder="{{ p.placeholder }}" style="width:100%;box-sizing:border-box;background:var(--tb-panel-2);border:1px solid rgba(243,242,242,.32);padding:9px 10px;font-family:var(--font-body,Archivo),sans-serif;font-size:12.5px;color:#f3f2f2;border-radius:0;outline:none" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button type="button" style="all:unset;cursor:pointer;box-sizing:border-box;min-height:44px;display:flex;align-items:center;background:var(--tb-amber);color:#191919;padding:7px 18px;font-size:12px;font-weight:700" style-hover="background:#d98f2b" style-focus="outline:2px solid #f3f2f2;outline-offset:2px">Run</button>
+              <span style="font-size:11px;color:rgba(243,242,242,.5)">{{ p.toolCount }}</span>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- confirm -->
+  <div style="padding:26px clamp(16px,2.6vw,40px) 30px;border-bottom:2px solid var(--tb-rule);background:var(--tb-ground-2)">
+    <div style="display:flex;flex-wrap:wrap;gap:32px 48px;align-items:start">
+      <div style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:12px">
+        <h2 style="margin:0;font-family:var(--font-heading,Archivo),sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em">The one control no agent can reach</h2>
+        <p style="margin:0;font-size:14.5px;line-height:1.5;max-width:60ch;text-wrap:pretty"><span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:13.5px">confirm</span> is not in the registry for any agent, in any phase. It is not withheld and it is not refused. It was never written down as something an agent could call. A person presses it.</p>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:4px">
+          <button type="button" onClick="{{ onConfirm }}" aria-disabled="{{ confirmDisabled }}" style="all:unset;cursor:{{ confirmCursor }};box-sizing:border-box;min-height:44px;display:flex;align-items:center;background:{{ confirmBg }};color:{{ confirmInk }};border:2px solid var(--tb-rule);padding:13px 22px;font-size:15px;font-weight:700;text-align:left;opacity:{{ confirmOpacity }}" style-focus="outline:2px solid var(--tb-amber);outline-offset:2px">{{ confirmLabel }}</button>
+          <span style="font-size:13px;line-height:1.45;color:var(--tb-ink-2);max-width:34ch">{{ confirmHint }}</span>
+        </div>
+      </div>
+      <div style="flex:1 1 300px;min-width:0;border-left:2px solid var(--tb-rule);padding-left:24px;display:flex;flex-direction:column;gap:10px">
+        <h3 style="margin:0;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--tb-ink-2)">Registry check for confirm</h3>
+        <sc-for list="{{ confirmRows }}" as="c" hint-placeholder-count="4">
+          <div style="display:grid;grid-template-columns:13px 1fr auto;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid var(--tb-rule-3)">
+            <svg width="11" height="11" viewBox="0 0 22 22" style="color:var(--tb-ink-3)" aria-hidden="true"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>
+            <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;word-break:break-all">{{ c.origin }}</span>
+            <span style="font-size:12px;color:var(--tb-ink-2);white-space:nowrap">not registered</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+
+  <!-- the record -->
+  <div style="padding:26px clamp(16px,2.6vw,40px) 0">
+    <h2 style="margin:0 0 16px;font-family:var(--font-heading,Archivo),sans-serif;font-size:20px;font-weight:700;letter-spacing:-0.01em">The record</h2>
+    <div class="tb-cols3" style="display:grid;border-top:2px solid var(--tb-rule);border-left:2px solid var(--tb-rule)">
+
+      <div style="min-width:0;border-right:2px solid var(--tb-rule);border-bottom:2px solid var(--tb-rule);padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <h3 style="margin:0;font-size:13px;font-weight:700">Exhibits</h3>
+          <span style="font-size:12.5px;line-height:1.4;color:var(--tb-ink-2)">The papers both sides argue from. Each has an id both halves quote.</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--tb-rule-3)">
+            <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;font-weight:600">exhibit-1</span>
+            <span style="font-size:12.5px;line-height:1.4">Signed agreement, four pages, text layer present. Filed by Advocate A at 14:03.</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;padding:8px 0;border-top:1px solid var(--tb-rule-3)">
+            <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;font-weight:600">exhibit-2</span>
+            <span style="font-size:12.5px;line-height:1.4">Scan of a letter, no text layer. Only a seat can have its text read out, and only by machinery the page runs.</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="min-width:0;border-right:2px solid var(--tb-rule);border-bottom:2px solid var(--tb-rule);padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <h3 style="margin:0;font-size:13px;font-weight:700">Facts on the record</h3>
+          <span style="font-size:12.5px;line-height:1.4;color:var(--tb-ink-2)">Filed with file_fact. A filled disc is agreed, a hollow ring is contested.</span>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ facts }}" as="f" hint-placeholder-count="3">
+            <div style="display:grid;grid-template-columns:13px 1fr;gap:10px;padding:8px 0;border-top:1px solid var(--tb-rule-3)">
+              <div style="padding-top:3px">
+                <sc-if value="{{ f.agreed }}" hint-placeholder-val="{{ true }}">
+                  <svg width="11" height="11" viewBox="0 0 22 22" style="color:var(--tb-ink);display:block" role="img" aria-label="agreed"><circle cx="11" cy="11" r="10" fill="currentColor"></circle></svg>
+                </sc-if>
+                <sc-if value="{{ f.contested }}" hint-placeholder-val="{{ false }}">
+                  <svg width="11" height="11" viewBox="0 0 22 22" style="color:var(--tb-ink-3);display:block" role="img" aria-label="contested"><circle cx="11" cy="11" r="9" fill="none" stroke="currentColor" stroke-width="2"></circle></svg>
+                </sc-if>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:2px">
+                <span style="font-size:12.5px;line-height:1.45">{{ f.text }}</span>
+                <span style="font-size:11px;color:var(--tb-ink-3)">{{ f.who }}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="min-width:0;border-right:2px solid var(--tb-rule);border-bottom:2px solid var(--tb-rule);padding:16px 20px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:3px">
+          <h3 style="margin:0;font-size:13px;font-weight:700">Record of steps</h3>
+          <span style="font-size:12.5px;line-height:1.4;color:var(--tb-ink-2)">Every call any agent made, in order, with what came back.</span>
+        </div>
+        <div style="display:flex;flex-direction:column">
+          <sc-for list="{{ docket }}" as="d" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:42px 1fr auto;gap:10px;align-items:baseline;padding:7px 0;border-top:1px solid var(--tb-rule-3)">
+              <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;color:var(--tb-ink-3)">{{ d.time }}</span>
+              <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12px;overflow-wrap:break-word;min-width:0">{{ d.line }}</span>
+              <sc-if value="{{ d.flagged }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size:11.5px;font-weight:700;color:var(--tb-never);white-space:nowrap">{{ d.outcome }}</span>
+              </sc-if>
+              <sc-if value="{{ d.plain }}" hint-placeholder-val="{{ true }}">
+                <span style="font-size:11.5px;color:var(--tb-ink-2);white-space:nowrap">{{ d.outcome }}</span>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <sc-if value="{{ hasVerdict }}" hint-placeholder-val="{{ false }}">
+      <div style="border:2px solid var(--tb-rule);border-top:none;padding:18px 20px;display:flex;flex-wrap:wrap;gap:20px 28px;align-items:start">
+        <div style="flex:0 1 240px;display:flex;flex-direction:column;gap:3px;max-width:34ch">
+          <h3 style="margin:0;font-size:13px;font-weight:700">Draft verdict</h3>
+          <span style="font-size:12.5px;line-height:1.4;color:var(--tb-ink-2)">Assembled with draft_verdict from both seats. Not in force until a person confirms it.</span>
+        </div>
+        <div style="flex:3 1 420px;min-width:0;display:flex;flex-direction:column;gap:9px">
+          <p style="margin:0;font-size:14px;line-height:1.55;max-width:90ch;text-wrap:pretty">{{ verdictText }}</p>
+          <span style="font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:11px;color:var(--tb-ink-3)">{{ verdictMeta }}</span>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Follow the system&quot;,&quot;Dark&quot;,&quot;Light&quot;],&quot;default&quot;:&quot;Follow the system&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;manifestTreatment&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Marked list per agent&quot;,&quot;Shared registry matrix&quot;],&quot;default&quot;:&quot;Marked list per agent&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Appearance&quot;},&quot;origins&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;production&quot;,&quot;dev&quot;],&quot;default&quot;:&quot;production&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;showRefusalBanner&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;States&quot;},&quot;showStreaming&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;States&quot;}}">
+/* The registry. Fourteen bare names, one order, used everywhere on the page. */
+const TOOLS = [
+  { id: 'cite', note: 'quotes a line of an exhibit into the record' },
+  { id: 'concede', note: 'gives up a point, on the record' },
+  { id: 'confirm', never: true, note: 'signs the verdict. Never handed to any agent' },
+  { id: 'dispute', note: 'contests a point the other side filed' },
+  { id: 'draft_verdict', note: 'assembles both seats\u2019 assessments into a draft' },
+  { id: 'extract_text', lent: true, seatOnly: true, note: 'reads the text off a scanned page' },
+  { id: 'file_exhibit', note: 'puts a document on the record' },
+  { id: 'file_fact', note: 'puts a statement on the record, agreed or contested' },
+  { id: 'object', note: 'flags something in the other side\u2019s filing' },
+  { id: 'open_exhibit', note: 'opens a document already on the record' },
+  { id: 'record_assessment', note: 'writes a seat\u2019s assessment' },
+  { id: 'return_with_note', note: 'sends the case back with a reason' },
+  { id: 'search_exhibits', lent: true, seatOnly: true, note: 'searches the exhibits by phrase' },
+  { id: 'spend_appeal', note: 'spends one of a party\u2019s limited appeals' }
+];
+
+const ORIGINS = {
+  dev: { a: 'localhost:8081', b: 'localhost:8082', s1: 'localhost:8083', s2: 'localhost:8084', record: 'localhost:8080' },
+  production: {
+    a: 'theboard-a.netlify.app', b: 'theboard-b.netlify.app',
+    s1: 'theboard-seat1.netlify.app', s2: 'theboard-seat2.netlify.app',
+    record: 'theboard-record.netlify.app'
+  }
+};
+
+const ACTORS = [
+  { id: 'a', name: 'Advocate A', role: 'Argues for the first person.', hue: '#4FD1E0' },
+  { id: 'b', name: 'Advocate B', role: 'Argues for the second person.', hue: '#E8618C' },
+  { id: 's1', name: 'Seat 1', role: 'Reads both sides and assesses.', hue: '#A78BFA' },
+  { id: 's2', name: 'Seat 2', role: 'Reads both sides and assesses.', hue: '#5FD08A' }
+];
+
+const PHASES = [
+  { id: 'filing', label: 'Filing', sub: 'advocates put their case in', advance: 'Open review' },
+  { id: 'review', label: 'Review', sub: 'seats read both cases', advance: 'Ask the seats to draft' },
+  { id: 'verdict', label: 'Draft verdict', sub: 'seats write, nothing is in force', advance: 'Hand to a person' },
+  { id: 'confirmed', label: 'Confirmed', sub: 'a person signed it', advance: null }
+];
+
+/* extract_text and search_exhibits are seat-only in every phase.
+   confirm appears in no list, in any phase. */
+const GRANTS = {
+  filing: {
+    a: ['concede', 'dispute', 'file_exhibit', 'file_fact', 'open_exhibit'],
+    b: ['concede', 'dispute', 'file_exhibit', 'file_fact', 'open_exhibit'],
+    s1: [], s2: []
+  },
+  review: {
+    a: ['cite', 'concede', 'object', 'open_exhibit', 'spend_appeal'],
+    b: ['cite', 'concede', 'object', 'open_exhibit', 'spend_appeal'],
+    s1: ['cite', 'extract_text', 'open_exhibit', 'record_assessment', 'return_with_note', 'search_exhibits'],
+    s2: ['cite', 'extract_text', 'open_exhibit', 'record_assessment', 'return_with_note', 'search_exhibits']
+  },
+  verdict: {
+    a: ['open_exhibit', 'spend_appeal'],
+    b: ['open_exhibit', 'spend_appeal'],
+    s1: ['draft_verdict', 'open_exhibit', 'record_assessment'],
+    s2: ['draft_verdict', 'open_exhibit', 'record_assessment']
+  },
+  confirmed: { a: ['open_exhibit'], b: ['open_exhibit'], s1: ['open_exhibit'], s2: ['open_exhibit'] }
+};
+
+const EXAMPLES = {
+  a: ['File the signed agreement as an exhibit.',
+      'File the delivery date as a fact and mark it agreed.',
+      'Dispute the second paragraph of their letter.'],
+  b: ['Open exhibit-1 and read the clause about timing.',
+      'Concede the date, then dispute what it means.',
+      'File our own letter as an exhibit.'],
+  s1: ['Have the page read out the scanned letter.',
+       'Search both exhibits for delivery window.',
+       'Write an assessment of where the two sides actually differ.'],
+  s2: ['Return the case with a note if a citation does not match its source.',
+       'Cite the line each side is relying on.',
+       'Draft a verdict for a person to read.']
+};
+
+const STREAM_SENTENCES = [
+  'Both sides accept the letter at exhibit-2 is genuine.',
+  'They differ on what its second paragraph requires.',
+  'The citation Advocate A filed at line 14 does not match the source text.'
+];
+
+const T = {
+  filing: {
+    a: [
+      { k: 'ok', tool: 'file_exhibit', arg: 'exhibit-1, signed agreement, 4pp', out: 'filed 14:03' },
+      { k: 'ok', tool: 'open_exhibit', arg: 'exhibit-1', out: 'text layer present' },
+      { k: 'notgranted', tool: 'extract_text', msg: 'Advocate A reached for extract_text. It belongs to the seats and to no one else, so it was never in this agent\u2019s list. Nothing left the frame.' },
+      { k: 'ok', tool: 'file_fact', arg: 'delivery date, marked agreed', out: 'on the record 14:11' }
+    ],
+    b: [
+      { k: 'ok', tool: 'open_exhibit', arg: 'exhibit-1', out: 'text layer present' },
+      { k: 'ok', tool: 'concede', arg: 'delivery date', out: 'on the record 14:12' },
+      { k: 'refused', tool: 'record_assessment', msg: 'The browser would not complete the call. record_assessment is registered to the seat origins only, so a frame on ' + ORIGINS.production.b + ' cannot reach it. Advocates do not assess.' },
+      { k: 'ok', tool: 'dispute', arg: 'second paragraph, exhibit-1', out: 'on the record 14:14' }
+    ],
+    s1: [], s2: []
+  },
+  review: {
+    a: [
+      { k: 'ok', tool: 'cite', arg: 'exhibit-2 line 14', out: 'cited 14:16' },
+      { k: 'notgranted', tool: 'return_with_note', msg: 'Advocate A reached for return_with_note. Only a seat can send a case back. It was never in this agent\u2019s list.' }
+    ],
+    b: [
+      { k: 'ok', tool: 'object', arg: 'A citation, exhibit-2 line 14', out: 'flagged 14:18' },
+      { k: 'refused', tool: 'search_exhibits', msg: 'The browser would not complete the call. search_exhibits is machinery the page holds for the seats, registered to the seat origins only.' }
+    ],
+    s1: [
+      { k: 'ok', tool: 'extract_text', arg: 'exhibit-2, page 3, run by the page', out: '412 words' },
+      { k: 'ok', tool: 'search_exhibits', arg: '"delivery window"', out: '6 hits' },
+      { k: 'run', tool: 'record_assessment', out: 'writing' }
+    ],
+    s2: [
+      { k: 'ok', tool: 'open_exhibit', arg: 'exhibit-1, exhibit-2', out: '2 exhibits' },
+      { k: 'broke', tool: 'extract_text', msg: 'The page started reading exhibit-2 for Seat 2 and the run stopped partway. This is not a boundary and not a refusal. The machinery failed.', retryArg: 'exhibit-2, page 3, run by the page, second attempt', retryOut: '412 words' },
+      { k: 'ok', tool: 'return_with_note', arg: 'citation at exhibit-2 line 14', out: 'sent 14:26' }
+    ]
+  },
+  verdict: {
+    a: [
+      { k: 'ok', tool: 'open_exhibit', arg: 'exhibit-2', out: '1 exhibit' },
+      { k: 'notgranted', tool: 'confirm', msg: 'Advocate A reached for confirm. It is in no agent\u2019s list, in any phase, and never has been. Only a person can press it.' }
+    ],
+    b: [
+      { k: 'ok', tool: 'spend_appeal', arg: '1 of 2 remaining', out: 'spent 14:30' }
+    ],
+    s1: [
+      { k: 'ok', tool: 'record_assessment', arg: 'final, 3 points', out: 'written 14:31' },
+      { k: 'ok', tool: 'draft_verdict', arg: 'both assessments', out: 'assembled 14:35' }
+    ],
+    s2: [
+      { k: 'ok', tool: 'record_assessment', arg: 'final, 2 points', out: 'written 14:33' }
+    ]
+  },
+  confirmed: {
+    a: [{ k: 'ok', tool: 'open_exhibit', arg: 'verdict', out: 'read only' }],
+    b: [{ k: 'ok', tool: 'open_exhibit', arg: 'verdict', out: 'read only' }],
+    s1: [{ k: 'ok', tool: 'open_exhibit', arg: 'verdict', out: 'read only' }],
+    s2: [{ k: 'ok', tool: 'open_exhibit', arg: 'verdict', out: 'read only' }]
+  }
+};
+
+const DOCKET = {
+  filing: [
+    { time: '14:03', line: 'A file_exhibit exhibit-1', outcome: 'filed' },
+    { time: '14:07', line: 'A extract_text exhibit-1', outcome: 'not handed over', flag: true },
+    { time: '14:12', line: 'B concede delivery date', outcome: 'on the record' },
+    { time: '14:13', line: 'B record_assessment', outcome: 'refused', flag: true },
+    { time: '14:14', line: 'B dispute exhibit-1 \u00b62', outcome: 'on the record' }
+  ],
+  review: [
+    { time: '14:16', line: 'A cite exhibit-2 l.14', outcome: 'cited' },
+    { time: '14:18', line: 'B search_exhibits', outcome: 'refused', flag: true },
+    { time: '14:21', line: 'S1 extract_text exhibit-2', outcome: '412 words' },
+    { time: '14:23', line: 'S2 extract_text exhibit-2', outcome: 'broke', flag: true, retryRow: 's2extract_text', retryTime: '14:25', retryLine: 'S2 extract_text (retry)', retryOutcome: '412 words' },
+    { time: '14:24', line: 'S1 record_assessment', outcome: 'running', flag: true, live: true },
+    { time: '14:26', line: 'S2 return_with_note', outcome: 'sent' }
+  ],
+  verdict: [
+    { time: '14:29', line: 'A confirm', outcome: 'not handed over', flag: true },
+    { time: '14:30', line: 'B spend_appeal', outcome: '1 of 2 left' },
+    { time: '14:31', line: 'S1 record_assessment', outcome: 'written' },
+    { time: '14:33', line: 'S2 record_assessment', outcome: 'written' },
+    { time: '14:35', line: 'S1 draft_verdict', outcome: 'assembled' }
+  ],
+  confirmed: [
+    { time: '14:35', line: 'S1 draft_verdict', outcome: 'assembled' },
+    { time: '14:41', line: 'person confirm', outcome: 'signed', flag: true }
+  ]
+};
+
+const FACTS = [
+  { agreed: true, text: 'The agreement at exhibit-1 was signed by both parties on 4 March.', who: 'filed by A, conceded by B' },
+  { agreed: true, text: 'The letter at exhibit-2 is a scan of a genuine document.', who: 'filed by B, conceded by A' },
+  { agreed: false, text: 'The second paragraph of exhibit-1 required delivery before the end of the month.', who: 'filed by A, disputed by B' }
+];
+
+class Component extends DCLogic {
+  state = {
+    phase: 'filing', composer: {}, doublePrompt: '', stopped: {}, retried: {},
+    atBottom: {}, pendingBelow: {}
+  };
+
+  constructor(props) {
+    super(props);
+    this.logs = {};
+    this.tick = null;
+    this.streamStart = null;
+    this.streamPhase = null;
+    this.lockSentences = {};
+  }
+
+  componentWillUnmount() { if (this.tick) clearInterval(this.tick); }
+
+  /* The stream is derived from a clock, not accumulated in state: renderVals
+     computes how many words are due from elapsed time, and the interval's only
+     job is to force a repaint. No read-modify-write, so nothing can wedge. */
+  WORDS() { return STREAM_SENTENCES.join(' ').split(' '); }
+
+  wordsDue() {
+    if (!this.streamStart) return 0;
+    const total = this.WORDS().length;
+    return Math.min(total, Math.floor((Date.now() - this.streamStart) / 190));
+  }
+
+  ensureStream() {
+    const phase = this.state.phase;
+    if (this.streamPhase !== phase) {
+      this.streamPhase = phase;
+      this.streamStart = null;
+      this.lockSentences = {};
+      if (this.tick) { clearInterval(this.tick); this.tick = null; }
+    }
+    const id = this.streamingActor();
+    const live = id && (this.props.showStreaming ?? true) && !this.state.stopped[id];
+    if (!live) {
+      if (this.tick) { clearInterval(this.tick); this.tick = null; }
+      return;
+    }
+    if (!this.streamStart) this.streamStart = Date.now();
+    if (this.wordsDue() >= this.WORDS().length) {
+      if (this.tick) { clearInterval(this.tick); this.tick = null; }
+      return;
+    }
+    if (!this.tick) {
+      this.tick = setInterval(() => {
+        if (this.wordsDue() >= this.WORDS().length) { clearInterval(this.tick); this.tick = null; }
+        this.forceUpdate();
+      }, 190);
+    }
+  }
+
+  /* Auto-scroll only when the reader is already within 100px of the bottom.
+     Never moves focus: a run finishing in one panel must not pull focus out of
+     a composer someone is typing in. */
+  syncScroll() {
+    ACTORS.forEach(a => {
+      const el = this.logs[a.id];
+      if (!el) return;
+      if (this.state.atBottom[a.id] === false) return;
+      if (el.scrollTop !== el.scrollHeight - el.clientHeight) el.scrollTop = el.scrollHeight;
+    });
+  }
+
+  streamingActor() {
+    const raw = T[this.state.phase] || {};
+    const hit = ACTORS.filter(a => (raw[a.id] || []).some(l => l.k === 'run'))[0];
+    return hit ? hit.id : null;
+  }
+
+  /* Whole sentences only: the visible log may sit mid-sentence, this never does. */
+  completedSentences(wordsShown) {
+    const text = this.WORDS().slice(0, wordsShown).join(' ');
+    return text.match(/[^.!?]+[.!?]/g) || [];
+  }
+
+  setPhase(id) { this.setState({ phase: id }); }
+
+  onLogScroll(id, el) {
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight <= 100;
+    if (this.state.atBottom[id] === near) return;
+    /* Remember how much had arrived when the reader scrolled away, so the jump
+       control can count what has landed below the fold since. */
+    if (!near) this.lockSentences[id] = this.completedSentences(this.wordsDue()).length;
+    this.setState(s => ({ atBottom: Object.assign({}, s.atBottom, { [id]: near }) }));
+  }
+
+  renderVals() {
+    const phase = this.state.phase;
+    const idx = PHASES.findIndex(p => p.id === phase);
+    const grants = GRANTS[phase];
+    const treatment = this.props.manifestTreatment ?? 'Marked list per agent';
+    const streaming = this.props.showStreaming ?? true;
+    const env = this.props.origins ?? 'production';
+    const org = ORIGINS[env] || ORIGINS.production;
+    const themePref = this.props.theme ?? 'Follow the system';
+    this.ensureStream();
+    const streamId = this.streamingActor();
+    const wordsShown = this.wordsDue();
+    const streamedWords = this.WORDS().slice(0, wordsShown).join(' ');
+    const announcedText = this.completedSentences(wordsShown).map(s => s.trim()).join(' ');
+    setTimeout(() => this.syncScroll(), 0);
+
+    const phaseRail = PHASES.map((p, i) => ({
+      label: p.label, sub: p.sub,
+      done: i <= idx, pending: i > idx, current: i === idx,
+      ariaCurrent: i === idx ? 'step' : 'false',
+      onClick: () => this.setPhase(p.id)
+    }));
+    const nextPhase = PHASES[idx + 1];
+
+    const manifests = ACTORS.map(a => {
+      const held = grants[a.id] || [];
+      return {
+        name: a.name, origin: org[a.id], hue: a.hue,
+        holdsNothing: held.length === 0,
+        rows: TOOLS.map(t => {
+          const granted = held.indexOf(t.id) !== -1;
+          return {
+            name: t.id, granted, withheld: !granted,
+            lent: !!t.lent, never: !!t.never
+          };
+        })
+      };
+    });
+
+    const matrixRows = TOOLS.map((t, i) => ({
+      name: t.id, note: t.note,
+      bg: i % 2 === 1 ? 'var(--tb-ground-2)' : 'transparent',
+      cells: ACTORS.map(a => {
+        const granted = (grants[a.id] || []).indexOf(t.id) !== -1;
+        return { granted, withheld: !granted };
+      })
+    }));
+
+    const panels = ACTORS.map(a => {
+      const held = grants[a.id] || [];
+      const raw = (T[phase] && T[phase][a.id]) || [];
+      const lines = raw
+        .filter(l => l.k !== 'run' || (streaming && !this.state.stopped[a.id]))
+        .map(l => {
+          /* A run whose text has finished arriving stops claiming to run: no Stop
+             control, no progress bar, just the outcome. */
+          const runDone = l.k === 'run' && wordsShown >= this.WORDS().length;
+          /* Retry is a transition, not a deletion: the broke call resolves into
+             the outcome it would have produced. The break stays in the docket. */
+          const retried = l.k === 'broke' && !!this.state.retried[a.id + l.tool];
+          return {
+            tool: l.tool,
+            arg: runDone ? 'final, 3 points' : retried ? l.retryArg : (l.arg || ''),
+            out: runDone ? 'written 14:34' : retried ? l.retryOut : (l.out || ''),
+            msg: l.msg || '',
+            streamed: streamedWords,
+            isOk: l.k === 'ok' || runDone || retried,
+            isRun: l.k === 'run' && !runDone,
+            isRefused: l.k === 'refused', isNotGranted: l.k === 'notgranted',
+            isBroke: l.k === 'broke' && !retried,
+            onStop: () => this.setState(s => ({ stopped: Object.assign({}, s.stopped, { [a.id]: true }) })),
+            onRetry: () => this.setState(s => ({ retried: Object.assign({}, s.retried, { [a.id + l.tool]: true }) }))
+          };
+        });
+      /* Badge reads the resolved lines, never the raw script. */
+      let stateLabel = 'idle';
+      if (lines.some(l => l.isRun)) stateLabel = 'running';
+      else if (lines.some(l => l.isBroke)) stateLabel = 'one run broke';
+      else if (lines.some(l => l.isRefused)) stateLabel = 'refused once';
+      else if (held.length === 0) stateLabel = 'no tools';
+      else if (lines.length) stateLabel = 'done';
+      const running = lines.some(l => l.isRun);
+      const isSeat = a.id === 's1' || a.id === 's2';
+      const pending = this.state.atBottom[a.id] === false
+        ? Math.max(0, this.completedSentences(wordsShown).length - (this.lockSentences[a.id] || 0))
+        : 0;
+      return {
+        name: a.name, role: a.role, origin: org[a.id], hue: a.hue,
+        headingId: 'tb-h-' + a.id,
+        logLabelId: 'tb-log-' + a.id,
+        logLabel: a.name + ' transcript, ' + PHASES[idx].label.toLowerCase(),
+        composerId: 'tb-c-' + a.id,
+        composerLabel: 'Instruction for ' + a.name,
+        stateLabel, isEmpty: lines.length === 0,
+        emptyLine: isSeat && held.length === 0
+          ? 'Seats hold nothing while the advocates are filing. Tools arrive at review. Try one of these then, or read the record now.'
+          : 'No instruction yet. Any of these runs with the tools this agent holds right now.',
+        lines,
+        logRef: el => { if (el) this.logs[a.id] = el; },
+        onScroll: e => this.onLogScroll(a.id, e.currentTarget),
+        showJump: this.state.atBottom[a.id] === false,
+        jumpLabel: pending > 0 ? 'Jump to latest, ' + pending + ' new' : 'Jump to latest',
+        onJump: () => {
+          const el = this.logs[a.id];
+          if (el) el.scrollTop = el.scrollHeight;
+          this.setState(s => ({ atBottom: Object.assign({}, s.atBottom, { [a.id]: true }) }));
+        },
+        announced: a.id === streamId ? announcedText : '',
+        toolCount: held.length === 1 ? '1 tool in hand' : held.length + ' tools in hand',
+        composer: this.state.composer[a.id] || '',
+        placeholder: 'Type an instruction for ' + a.name,
+        onCompose: e => {
+          const v = e.target.value;
+          this.setState(s => ({ composer: Object.assign({}, s.composer, { [a.id]: v }) }));
+        },
+        examples: (EXAMPLES[a.id] || []).map(text => ({
+          text,
+          onClick: () => this.setState(s => ({ composer: Object.assign({}, s.composer, { [a.id]: text }) }))
+        }))
+      };
+    });
+
+    const hasVerdict = phase === 'verdict' || phase === 'confirmed';
+    const signed = phase === 'confirmed';
+
+    return {
+      themeAttr: themePref === 'Dark' ? 'dark' : themePref === 'Light' ? 'light' : 'auto',
+      recordOrigin: org.record,
+      envLabel: env === 'dev' ? 'dev, localhost' : 'production, netlify',
+      seat1Origin: org.s1, seat2Origin: org.s2,
+      actors: ACTORS.map(a => ({ name: a.name, hue: a.hue, origin: org[a.id] })),
+      phaseRail,
+      advanceLabel: nextPhase ? PHASES[idx].advance : 'Start a new case',
+      advance: () => this.setPhase(nextPhase ? nextPhase.id : 'filing'),
+      bannerOn: !!this.props.showRefusalBanner,
+      isListTreatment: treatment === 'Marked list per agent',
+      isMatrixTreatment: treatment === 'Shared registry matrix',
+      manifests, matrixRows, panels,
+      facts: FACTS.map(f => ({ text: f.text, who: f.who, agreed: f.agreed, contested: !f.agreed })),
+      docket: (DOCKET[phase] || []).reduce((acc, d) => {
+        /* The one row that tracks the live run, so the record never says running
+           after the writing has finished. */
+        const done = d.live && wordsShown >= this.WORDS().length;
+        acc.push({
+          time: d.time, line: d.line,
+          outcome: done ? 'written' : d.outcome,
+          flagged: !!d.flag && !done, plain: !d.flag || done
+        });
+        /* A retry is appended to the record. The break above it stays. */
+        if (d.retryRow && this.state.retried[d.retryRow]) {
+          acc.push({ time: d.retryTime, line: d.retryLine, outcome: d.retryOutcome, flagged: false, plain: true });
+        }
+        return acc;
+      }, []).sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0)),
+      hasVerdict,
+      verdictText: 'The citation both filings rest on, at exhibit-2 line 14, does not appear in the source either side gave. Neither case is made out on the record as it stands. The letter should be read again in full before anything is decided.',
+      verdictMeta: signed
+        ? 'draft_verdict 14:35, from Seat 1 and Seat 2. Confirmed by a person 14:41.'
+        : 'draft_verdict 14:35, from Seat 1 and Seat 2. Not in force.',
+      doublePrompt: this.state.doublePrompt,
+      onDoublePrompt: e => this.setState({ doublePrompt: e.target.value }),
+      confirmRows: ACTORS.map(a => ({ origin: org[a.id] })),
+      confirmLabel: signed ? 'Confirmed by a person, 14:41' : 'Confirm this verdict',
+      confirmHint: signed
+        ? 'Signed. The record is closed and every agent is read only.'
+        : hasVerdict
+          ? 'Live for a person at this keyboard. No agent has a way to press it.'
+          : 'Nothing to confirm until the seats have drafted.',
+      confirmBg: signed ? 'var(--tb-ink)' : hasVerdict ? 'var(--tb-amber)' : 'transparent',
+      confirmInk: signed ? 'var(--tb-ground)' : hasVerdict ? '#191919' : 'var(--tb-ink)',
+      confirmOpacity: hasVerdict ? '1' : '0.45',
+      confirmCursor: hasVerdict && !signed ? 'pointer' : 'default',
+      confirmDisabled: hasVerdict && !signed ? 'false' : 'true',
+      onConfirm: () => { if (hasVerdict && !signed) this.setPhase('confirmed'); }
+    };
+  }
+}
+
+</script>
+</body>
+</html>

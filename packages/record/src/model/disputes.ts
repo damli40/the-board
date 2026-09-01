@@ -2,6 +2,13 @@ import type { Dispute, Locator, Side } from './types';
 import type { ExhibitStore } from './exhibits';
 import type { Receipts } from './receipts';
 import { checkQuote } from './quote';
+// Task 5, fix round 2, N1: this store's guards fire on the demo's central
+// beat ("the seat tried to dispute a document it never read, and the
+// record refused") — they need to be marked as deliberate refusals the
+// same way impl.ts's own guards are, or they render as a machinery
+// failure with a retry button that only fails again. See ledger.ts's own
+// comment on Refusal for the full mechanism.
+import { Refusal } from '../webmcp/ledger';
 
 export interface DisputeInput {
   factId: string;
@@ -25,20 +32,28 @@ export class DisputeStore {
 
   record(input: DisputeInput): Dispute {
     if (!this.receipts.hasOpened(input.by, input.exhibitId)) {
-      throw new Error(`${input.by} has not opened ${input.exhibitId}`);
+      // open_exhibit is safe to name: it is held by ['A','B'] in THIS
+      // lifetime (filing) too — see webmcp/tools.ts's own 'filing' copy.
+      throw new Refusal(`${input.by} has not opened ${input.exhibitId}; call open_exhibit first`);
     }
     const exhibit = this.exhibits.get(input.exhibitId);
     // Same string AssessmentStore throws — one missing-exhibit error across both
-    // stores, not two spellings of the same refusal.
-    if (!exhibit) throw new Error(`no such exhibit: ${input.exhibitId}`);
+    // stores, not two spellings of the same refusal. Kept byte-identical
+    // deliberately, including the recovery clause: neither actor set that can
+    // reach this guard (A/B here, seat1/seat2 in AssessmentStore) holds a tool
+    // that reads exhibit ids back (search_exhibits is boardRead-only, and
+    // read_board belongs to the observer, not either actor) — so the clause
+    // says where a real id comes from, not a tool name.
+    if (!exhibit) throw new Refusal(`no such exhibit: ${input.exhibitId}; use an exhibit id that was actually filed`);
 
     const check = checkQuote(exhibit, input.locator, input.quote);
     // check.reason, not a hardcoded string — matches AssessmentStore.record. checkQuote
     // already distinguishes "no such page", "an empty quote proves nothing" and "quote
     // not found" with different reasons; collapsing them here would tell a party the
     // wrong thing is wrong, which is the exact failure class this project exists to catch.
+    // Each of those reasons already carries its own recovery clause — see quote.ts.
     if (check.verifiable && !check.found) {
-      throw new Error(check.reason);
+      throw new Refusal(check.reason);
     }
 
     const dispute: Dispute = {

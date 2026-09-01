@@ -1,6 +1,10 @@
 import type { Actor, Assessment, Finding, Locator, Seat } from './types';
 import type { ExhibitStore } from './exhibits';
 import { checkQuote } from './quote';
+// Task 5, fix round 2, N1: same reasoning as disputes.ts's own comment —
+// AssessmentStore's read-receipt and quote guards fire on the demo path
+// too and must be marked deliberate, not left to render as broke.
+import { Refusal } from '../webmcp/ledger';
 
 /** Which actor has opened which exhibit. Written only by the open_exhibit tool. */
 // Actor, not Seat. Parties are receipted too, because `dispute` now requires a read.
@@ -45,14 +49,20 @@ export class AssessmentStore {
 
   record(input: AssessmentInput): Assessment {
     if (!this.receipts.hasOpened(input.seat, input.exhibitId)) {
-      throw new Error(`${input.seat} has not opened ${input.exhibitId}`);
+      // open_exhibit is safe to name: it is held by ['seat1','seat2'] in
+      // THIS lifetime (boardRead) — see webmcp/tools.ts.
+      throw new Refusal(`${input.seat} has not opened ${input.exhibitId}; call open_exhibit first`);
     }
 
     const exhibit = this.exhibits.get(input.exhibitId);
-    if (!exhibit) throw new Error(`no such exhibit: ${input.exhibitId}`);
+    // Byte-identical to DisputeStore.record's own "no such exhibit" string —
+    // see that file's comment on why neither actor set gets a tool name here.
+    if (!exhibit) throw new Refusal(`no such exhibit: ${input.exhibitId}; use an exhibit id that was actually filed`);
 
+    // Each reason checkQuote returns already carries its own recovery
+    // clause (quote.ts) — appended once, at the source, not duplicated here.
     const check = checkQuote(exhibit, input.locator, input.quote);
-    if (check.verifiable && !check.found) throw new Error(check.reason);
+    if (check.verifiable && !check.found) throw new Refusal(check.reason);
 
     const assessment: Assessment = {
       id: `AS${this.items.length + 1}`,

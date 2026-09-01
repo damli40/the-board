@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { Ledger } from './ledger';
+import { Ledger, Refusal } from './ledger';
 import { ORIGIN } from '../config/origins';
 
 describe('Ledger', () => {
@@ -22,13 +22,104 @@ describe('Ledger', () => {
   it('records a refusal too — the refusal is evidence, not an error to swallow', async () => {
     const ledger = new Ledger(() => 1000);
     const run = ledger.wrap(ORIGIN.seat1, 'record_assessment', async () => {
-      throw new Error('quote not found in E1 at the given locator');
+      throw new Refusal('quote not found in E1 at the given locator; check the exact wording and the locator');
     });
     await expect(run({})).rejects.toThrow('quote not found');
     expect(ledger.all()).toEqual([{
       origin: ORIGIN.seat1, tool: 'record_assessment', at: 1000,
-      ok: false, detail: 'quote not found in E1 at the given locator'
+      ok: false, detail: 'quote not found in E1 at the given locator; check the exact wording and the locator',
+      failure: 'refusal'
     }]);
+  });
+
+  // The discriminator this file's `wrap` adds so a reader (AgentCard's
+  // `deriveAgentState`, first) can tell a deliberate refusal apart from an
+  // ordinary bug — derived from `instanceof Refusal`, never from sniffing
+  // `detail` for the marker (the marker never reaches this stored copy at
+  // all, by design — see the test above and `wrap`'s own comment).
+  describe('the failure discriminator', () => {
+    it('marks a thrown Refusal as failure: "refusal"', async () => {
+      const ledger = new Ledger(() => 1000);
+      const run = ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => {
+        throw new Refusal('seat1 has not opened E9; call open_exhibit first');
+      });
+      await run({}).catch(() => {});
+      expect(ledger.all()[0]).toMatchObject({ ok: false, failure: 'refusal' });
+    });
+
+    it('marks a plain crash — a TypeError nobody anticipated — as failure: "crash", never "refusal"', async () => {
+      const ledger = new Ledger(() => 1000);
+      const run = ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => {
+        throw new TypeError('cannot read properties of undefined');
+      });
+      await run({}).catch(() => {});
+      expect(ledger.all()[0]).toMatchObject({ ok: false, failure: 'crash' });
+    });
+
+    it('leaves a success entry with no failure field at all', async () => {
+      const ledger = new Ledger(() => 1000);
+      await ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => 'ok')({});
+      expect(ledger.all()[0]).toEqual({ origin: ORIGIN.seat1, tool: 'open_exhibit', at: 1000, ok: true });
+    });
+  });
+
+  // -------------------------------------------------------------------
+  // Task 5, fix round 1, C1/C2: `Refusal` is the ONLY signal that survives
+  // the trip across the cross-origin boundary to `loop.ts` — everything
+  // else about the thrown error (its class, a stack trace, anything
+  // attached to it beyond `.message`) does not make it. So the marker has
+  // to be baked into the message text itself, here, before that crossing —
+  // these tests are what proves it actually is.
+  // -------------------------------------------------------------------
+  describe('Refusal marking (fix round 1, C1/C2)', () => {
+    it('marks a thrown Refusal\'s message before re-throwing it', async () => {
+      const ledger = new Ledger(() => 1000);
+      const run = ledger.wrap(ORIGIN.seat1, 'dispute', async () => {
+        throw new Refusal('cannot dispute your own fact');
+      });
+      await expect(run({})).rejects.toThrow(`${Refusal.MARKER}cannot dispute your own fact`);
+    });
+
+    it('leaves a plain Error UNMARKED — an unrecognised failure defaults to broke, not refused', async () => {
+      const ledger = new Ledger(() => 1000);
+      const run = ledger.wrap(ORIGIN.seat1, 'open_exhibit', async () => {
+        throw new TypeError('cannot read properties of undefined');
+      });
+      let err: Error | undefined;
+      try {
+        await run({});
+      } catch (e) {
+        err = e as Error;
+      }
+      expect(err?.message).not.toContain(Refusal.MARKER);
+      expect(err?.message).toBe('cannot read properties of undefined');
+    });
+
+    it('does not mark the LEDGER\'s own record of the failure — only what is re-thrown', async () => {
+      const ledger = new Ledger(() => 1000);
+      const run = ledger.wrap(ORIGIN.A, 'file_fact', async () => {
+        throw new Refusal('no such fact: F9');
+      });
+      await expect(run({})).rejects.toThrow();
+      // The docket only ever needed the two-way ok/not-ok split (task 5's
+      // own brief). Marking `detail` too would make every refused row in
+      // the record's own UI print a literal "[board:refusal]" prefix nobody
+      // asked to read.
+      expect(ledger.all()[0].detail).toBe('no such fact: F9');
+      expect(ledger.all()[0].ok).toBe(false);
+    });
+
+    it('a Refusal subclassing Error still notifies subscribers and writes exactly one entry, same as any other failure', async () => {
+      const ledger = new Ledger(() => 1000);
+      let notified = 0;
+      ledger.subscribe(() => { notified += 1; });
+      const run = ledger.wrap(ORIGIN.seat2, 'extract_text', async () => {
+        throw new Refusal('seat2 has not opened E2');
+      });
+      await run({}).catch(() => {});
+      expect(notified).toBe(1);
+      expect(ledger.all()).toHaveLength(1);
+    });
   });
 
   it('returns an empty count for an origin that has done nothing', () => {

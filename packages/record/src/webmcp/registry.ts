@@ -1,6 +1,7 @@
 import { ORIGIN, type Actor } from '../model/types';
 import {
   ALL_TOOL_NAMES,
+  OBSERVER_LABEL,
   OBSERVER_ORIGIN,
   OBSERVER_TOOLS,
   TOOLS,
@@ -225,12 +226,30 @@ export class ToolRegistry {
     const granted = this.observerGrants.map((g) => ({ tool: g.tool, used: counts[g.tool] ?? 0, lends: g.lends }));
     const names = new Set(granted.map((g) => g.tool));
     return {
-      label: 'visiting agent',
+      // Fix round 2, Minor: was the literal string 'visiting agent'
+      // alongside an OBSERVER_ORIGIN import that WAS the constant — nothing
+      // asserted the two agreed, so a rename of OBSERVER_LABEL would have
+      // gone stale here silently. registry.test.ts now asserts they match.
+      label: OBSERVER_LABEL,
       origin: OBSERVER_ORIGIN,
       granted,
       // Every tool the four panels can hold, none of which this one can.
       notGranted: ALL_TOOL_NAMES.filter((n) => !names.has(n))
     };
+  }
+
+  /**
+   * Fix round 2, C1: `observerFailures` was written at `openObserver`'s catch
+   * branch and read nowhere — so if Chrome refused the no-`exposedTo`
+   * registration, nothing on the page could tell the difference between
+   * "the browser said no" and "there was simply nothing to hand over yet".
+   * The observer card (`ui/Manifest.tsx`) reads this directly to draw that
+   * third state; `RefusalBanner` does NOT read it — that component belongs
+   * to a different task, and this failure is not a per-lifetime one, so it
+   * does not belong in `registrationFailures()`'s per-lifetime map either.
+   */
+  observerRegistrationFailures(): RegistrationFailure[] {
+    return [...this.observerFailures];
   }
 
   manifest(actor: Actor): Manifest {

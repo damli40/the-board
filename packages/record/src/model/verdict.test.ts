@@ -3,8 +3,8 @@ import { VerdictStore, computeSplit } from './verdict';
 import { Receipts, AssessmentStore } from './receipts';
 import { ExhibitStore } from './exhibits';
 import { FactStore } from './facts';
-import { Ledger } from '../webmcp/ledger';
-import { ORIGIN, type Verdict } from './types';
+import { Ledger, Refusal } from '../webmcp/ledger';
+import { ORIGIN, type Outcome, type Verdict } from './types';
 
 const bytes = (s: string) => new TextEncoder().encode(s).buffer;
 
@@ -35,6 +35,23 @@ describe('VerdictStore', () => {
     expect(() => verdicts.cite('seat1', 'F1')).toThrow('seat1 holds no assessment for F1');
   });
 
+  // Recovery-clause round (finish task): record_assessment is held by
+  // ['seat1','seat2'] in boardRead, and a seat is the only actor that can
+  // ever reach `cite` (verdictDraft) in the first place.
+  it('tells the seat the next move: call record_assessment for it first', () => {
+    expect(() => verdicts.cite('seat1', 'F1')).toThrow('call record_assessment for it first');
+  });
+
+  // Task 5, fix round 2, N1: cite's guard is the last link in the
+  // read-receipt chain and fires on the demo path — must throw `Refusal`,
+  // not a plain `Error`, asserted here as the CLASS (a message-substring
+  // check alone cannot tell them apart).
+  it('throws Refusal, not a plain Error, for that same refusal (fix round 2, N1)', () => {
+    let err: unknown;
+    try { verdicts.cite('seat1', 'F1'); } catch (e) { err = e; }
+    expect(err).toBeInstanceOf(Refusal);
+  });
+
   it('accepts the citation once an assessment exists', () => {
     assessE1('seat1');
     expect(verdicts.cite('seat1', 'F1')).toEqual(['F1']);
@@ -53,6 +70,20 @@ describe('VerdictStore', () => {
     expect(v.cited).toEqual(['F1']);
     expect(v.opened).toEqual(['E1']);
     expect(v.neverOpened).toEqual(['E2']);
+  });
+
+  // Fix C: the filmed run puts two DIFFERENT model providers behind seat1
+  // and seat2. `outcome` is model-supplied text, not a value this store
+  // controls, so one provider writing "Upheld" against another's "UPHELD"
+  // is a live risk, not a hypothetical one. `draft` must uppercase-normalise
+  // at the single point every verdict is stored, so a case difference alone
+  // never reads as a split.
+  it('uppercase-normalises a model-supplied outcome regardless of the case it arrived in', () => {
+    // Cast past the Outcome union on purpose: this is exactly the untyped,
+    // model-supplied string `impl.ts` passes straight through from
+    // `args?.outcome` at runtime — draft() is not allowed to refuse it.
+    const v = verdicts.draft('seat1', 'Upheld' as Outcome, '...', ['E1']);
+    expect(v.outcome).toBe('UPHELD');
   });
 });
 
@@ -147,5 +178,47 @@ describe('computeSplit', () => {
     const split = computeSplit(a, b, ledger);
     expect(split.callCounts.seat1.extract_text ?? 0).toBe(0);
     expect(split.callCounts.seat2.extract_text).toBe(2);
+  });
+});
+
+// Fix C, end to end: the filmed run drives seat1 and seat2 from two
+// DIFFERENT model providers, and nothing upstream guarantees they agree on
+// how they capitalise the same word. This drives real verdicts through
+// `VerdictStore.draft` — the actual call path `impl.ts`'s `draft_verdict`
+// uses — rather than constructing already-uppercase `Verdict` literals, so
+// it fails without the normalisation added to `draft` (before that change,
+// `computeSplit`'s `a.outcome !== b.outcome` sees 'Upheld' !== 'UPHELD' and
+// the banner would wrongly print THE SEATS DISAGREE over two verdicts that
+// agree).
+describe('cross-provider case (Fix C regression)', () => {
+  let receipts: Receipts, exhibits: ExhibitStore, assessments: AssessmentStore,
+      facts: FactStore, verdicts: VerdictStore;
+
+  beforeEach(async () => {
+    receipts = new Receipts();
+    exhibits = new ExhibitStore();
+    assessments = new AssessmentStore(exhibits, receipts);
+    facts = new FactStore();
+    verdicts = new VerdictStore(assessments, receipts, facts, exhibits);
+    await exhibits.add({ side: 'A', kind: 'text', name: 'a.txt', bytes: bytes('No objection was raised.'), filedAt: '2026-08-20T09:00:00Z' });
+  });
+
+  it('does not report a split when two seats agree but differ only in the case one model wrote', () => {
+    const ledger = new Ledger(() => 1000);
+    // One provider's seat writes 'Upheld'; the other's writes 'UPHELD'.
+    // Same outcome, different vendor formatting — exactly the risk the brief
+    // calls out, not a hypothetical.
+    const a = verdicts.draft('seat1', 'Upheld' as Outcome, 'Seat 1 reasoning.', ['E1']);
+    const b = verdicts.draft('seat2', 'UPHELD' as Outcome, 'Seat 2 reasoning.', ['E1']);
+    const split = computeSplit(a, b, ledger);
+    expect(split.split).toBe(false);
+  });
+
+  it('still reports a split when the seats genuinely disagree, case aside', () => {
+    const ledger = new Ledger(() => 1000);
+    const a = verdicts.draft('seat1', 'upheld' as Outcome, 'Seat 1 reasoning.', ['E1']);
+    const b = verdicts.draft('seat2', 'overturned' as Outcome, 'Seat 2 reasoning.', ['E1']);
+    const split = computeSplit(a, b, ledger);
+    expect(split.split).toBe(true);
   });
 });

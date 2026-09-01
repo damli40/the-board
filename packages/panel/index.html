@@ -6,13 +6,38 @@
     <link rel="icon" href="/favicon.ico" sizes="32x32" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#191919" />
-    <title>The Board — Panel</title>
+    <!--
+      Fix round 1, I5: this used to also carry
+      <meta name="robots" content="noindex, nofollow">, disclosed as an
+      addition beyond the brief. The reviewer caught that it's inert as
+      written, not merely superfluous: `robots.txt` in this directory sets
+      `Disallow: /` for this origin, which stops a crawler from ever
+      fetching this page — so it never reads a meta tag on it either. The
+      two mechanisms don't stack, the second is just dead weight, and
+      claiming otherwise in a comment is worse than not having it. Pulled
+      back to the brief, which asks for `robots.txt` only (see that file in
+      this package's public/ directory).
+    -->
+    <title>Agent panel — The Board</title>
+    <meta
+      name="description"
+      content="One agent's frame. It holds only the tools the record handed to this origin, and it is meant to be opened inside the record page."
+    />
+    <!--
+      This static title/description is the FALLBACK — what a crawler, a
+      link preview, or a JS-disabled visitor sees. The real, per-actor
+      version (e.g. "Advocate A — The Board") is set at runtime by
+      src/main.tsx once `?actor=` is known, the same resolution App.tsx
+      uses. See main.tsx's own comment for why it can't just import
+      App.tsx's actorFromQuery().
+    -->
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
     <div id="root">
-      <p>The Board — agent panel origin. Task 8 renders the real UI here.</p>
+      <p>This is one agent's frame. It needs JavaScript, and it is meant to be opened inside the record page, which is where the case file and the tool registry live.</p>
     </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#191919" />
+    <title>Not found — The Board</title>
+    <!--
+      Task 9. Netlify's own documented behaviour (not covered by any file in
+      this repo — docs/evidence/deploy.md doesn't mention 404s) is to serve
+      a public/404.html directly for any path a site doesn't otherwise
+      match, which is why this has to be standalone HTML. It cannot link
+      /src/styles.css: that path only exists under the Vite dev server, and
+      the built stylesheet's filename is content-hashed, so this inlines the
+      handful of theme.css tokens it actually needs instead (see that
+      file's own header comment for the full palette, both light and dark,
+      and why it's defined twice).
+
+      Fix round 1, I1: an earlier version of this script only copied the
+      `data-theme` half of /index.html's blocking script, and this comment
+      used to claim there was nothing for the theme-color meta below to
+      sync — wrong, that meta is right there at line 9, static, and a
+      pinned-light viewer on a phone would have seen the page paint light
+      while the browser chrome stayed the dark #191919 default. Both halves
+      are copied now, matching index.html's script exactly (see that
+      file's own comment for the full reasoning on why this needs to be a
+      plain, synchronous, non-module <script>, and why it runs before the
+      <style> block below: so both `data-theme` and `theme-color` are
+      settled before the browser resolves which `:root` rule applies, and
+      before it paints anything).
+
+      Fix round 2: the sentence above used to put quote marks around a
+      paraphrase of what the old comment said, rather than the old
+      comment's real wording — described here, not quoted, to not repeat
+      that exact mistake while explaining it.
+    -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('board:theme');
+          if (pref === 'dark' || pref === 'light') {
+            document.documentElement.setAttribute('data-theme', pref);
+          }
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) {
+            var isLight = pref === 'light'
+              || (pref !== 'dark' && window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches);
+            meta.setAttribute('content', isLight ? '#f3f2f2' : '#191919');
+          }
+        } catch (e) {
+          // Storage blocked, or matchMedia unavailable: fall through to the
+          // CSS defaults (dark, honouring the OS media query on its own).
+        }
+      })();
+    </script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #191919;
+        --ink: #f3f2f2;
+        --ink-2: rgba(243, 242, 242, 0.68);
+        --link: #eea33d;
+      }
+      /* Light: applies when the machine asks for light and nothing is pinned. */
+      @media (prefers-color-scheme: light) {
+        :root:not([data-theme='dark']) {
+          color-scheme: light;
+          --bg: #f3f2f2;
+          --ink: #201e1d;
+          --ink-2: rgba(32, 30, 29, 0.68);
+          --link: #8a4a06;
+        }
+      }
+      /* An explicit pin always wins over the machine's preference. */
+      :root[data-theme='light'] {
+        color-scheme: light;
+        --bg: #f3f2f2;
+        --ink: #201e1d;
+        --ink-2: rgba(32, 30, 29, 0.68);
+        --link: #8a4a06;
+      }
+      /* Paint the body — theme.css's own comment documents this exact bug:
+         an unpainted body lets the browser's own white overscroll area
+         show through below short content. */
+      body {
+        margin: 0;
+        min-height: 100vh;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Archivo, system-ui, sans-serif;
+      }
+      main {
+        max-width: 68ch;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 1.5rem;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0 0 24px;
+        line-height: 1.55;
+        color: var(--ink-2);
+      }
+      a {
+        color: var(--link);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>That page is not part of the record.</h1>
+      <p>The Board is one page, not a site. Everything is at the root: the case file, the four agents, and the record of what each one did.</p>
+      <p><a href="/">Go to the record</a></p>
+    </main>
+  </body>
+</html>

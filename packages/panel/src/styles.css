@@ -1,2 +1,37 @@
 @import "tailwindcss";
 @import "../../record/src/theme.css";
+
+/*
+ * Task 5 — panel-only hover/focus classes.
+ *
+ * theme.css (owned by the record package, being edited by another task
+ * right now) already carries `.tb-hover-ink2`, `.tb-hover-amber-dark` and
+ * `.tb-focus-amber` (Task 3). Two of those are reused directly below
+ * (`.tb-hover-amber-dark`, `.tb-focus-amber`) rather than duplicated here —
+ * this file only adds the ones the design calls for that don't already
+ * exist: a few extra hover treatments specific to the panel's own controls
+ * (Stop, the example buttons, the broke state's retry button), and a
+ * second focus-ring color for controls whose OWN background is amber (the
+ * jump control, the composer's Run button) — an amber ring on an amber
+ * button is invisible, so the design gives those `outline:2px solid
+ * #f3f2f2` instead of `var(--tb-amber)`. That is a LITERAL #f3f2f2 in the
+ * design, not `var(--tb-ink)`: the panel is always dark regardless of site
+ * theme (theme.css's own comment: "the panels stay dark in light mode"),
+ * and `--tb-ink` flips to a dark color in light mode, which would go
+ * invisible against this always-dark panel. Same reasoning as LogLine.tsx's
+ * PANEL_INK constant.
+ *
+ * Every rule below carries `!important` for the same load-bearing reason
+ * theme.css's own hover/focus classes do (see that file's Fix round 1, C1
+ * comment): the elements these classes target reset themselves with inline
+ * `all: 'unset'`, and an inline "normal" declaration outranks a stylesheet
+ * selector regardless of specificity — only `!important` in the stylesheet
+ * beats it. None of this file's elements ever set `outline` inline
+ * alongside one of these classes (the exact trap that comment describes),
+ * so there is nothing left to outrank.
+ */
+.tb-hover-example:hover { border-color: var(--tb-amber) !important; background: rgba(238,163,61,.14) !important; }
+.tb-hover-stop:hover { background: var(--tb-amber) !important; color: #191919 !important; }
+.tb-hover-retry:hover { background: #d9d6d3 !important; }
+.tb-focus-panel-ink:focus-visible { outline: 2px solid #f3f2f2 !important; outline-offset: 2px !important; }
+.tb-focus-amber-inset:focus-visible { outline: 2px solid var(--tb-amber) !important; outline-offset: -2px !important; }

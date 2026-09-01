@@ -13,15 +13,33 @@
 // RULING 3 (controller): every body below may throw, and throwing is the
 // design — the ledger records the refusal and the panel shows it. Nothing
 // here catches an error to make a body "safe."
+//
+// Task 5, fix round 1 (C1/C2): every one of these throws IS one of the
+// deliberate guards RULING 3 describes — a business rule this file chose to
+// enforce, never an unanticipated crash — so every `throw` in this file now
+// constructs `Refusal`, not a plain `Error`. `Ledger.wrap` (webmcp/ledger.ts)
+// is the only code that reads the difference: it marks a `Refusal`'s message
+// before it crosses the cross-origin boundary, so `loop.ts` on the panel
+// side can tell "the record refused this on purpose" apart from "the
+// machinery broke," and default anything unmarked — including any error
+// this file's own dependencies (the model-layer stores under `../model/`)
+// throw without going through `Refusal` — to the honest, conservative
+// "broke." A model-layer throw staying unmarked is not a decision that it
+// IS a crash; it is this file declining to guess at something it cannot see
+// from here.
 import type { Actor, ExhibitKind, Seat, Side } from '../model/types';
 import { ORIGIN } from '../config/origins';
 import type { ExhibitStore } from '../model/exhibits';
-import type { FactStore } from '../model/facts';
+// `otherSide` (a value import, not `type`) is `facts.ts`'s own self-dealing
+// recovery-clause helper, reused here so `dispute`'s pre-check below and
+// `FactStore.dispute`'s guard stay byte-identical by construction rather
+// than by two people remembering to match wording.
+import { otherSide, type FactStore } from '../model/facts';
 import type { Receipts, AssessmentStore } from '../model/receipts';
 import type { DisputeStore } from '../model/disputes';
 import type { VerdictStore } from '../model/verdict';
 import type { PhaseMachine } from '../webmcp/phases';
-import type { ToolRun } from '../webmcp/ledger';
+import { Refusal, type ToolRun } from '../webmcp/ledger';
 import { truncateForTool } from '../shared/truncate';
 import { extractPages } from '../pdf/extract';
 import { searchExhibits } from '../search/search';
@@ -37,17 +55,30 @@ const ACTOR_BY_ORIGIN: Record<string, Actor> = Object.fromEntries(
 
 function actorFor(origin: string): Actor {
   const actor = ACTOR_BY_ORIGIN[origin];
-  if (!actor) throw new Error(`unrecognised origin: ${origin}`);
+  // Recovery-clause round (scope extension): left state-only, on purpose.
+  // This does not name a wrong ACTOR the way requireSide/requireSeat below
+  // do — `origin` failed to resolve to any actor at all, so there is no
+  // actor identity here to reason a next move for, and no legitimate caller
+  // (a real registration always carries one of the four known origins) ever
+  // reaches this in practice. Under-claiming a recovery clause is safe;
+  // inventing one for an identity that does not exist is not.
+  if (!actor) throw new Refusal(`unrecognised origin: ${origin}`);
   return actor;
 }
 
 function requireSide(actor: Actor): Side {
-  if (actor !== 'A' && actor !== 'B') throw new Error(`${actor} is not a party and cannot do this`);
+  // The wrong-actor shape: `actor` is a real, origin-derived identity (never
+  // caller-supplied text — see ledger.ts's own comment on why origin is the
+  // one forgery-proof signal), but the wrong KIND of actor for this tool. No
+  // tool is named — a seat calling this holds none of the party-only tools
+  // in any phase — so the next move names who CAN act instead: A or B, by
+  // the same letters `webmcp/tools.ts`'s own `actors` arrays use.
+  if (actor !== 'A' && actor !== 'B') throw new Refusal(`${actor} is not a party and cannot do this; only A or B can`);
   return actor;
 }
 
 function requireSeat(actor: Actor): Seat {
-  if (actor !== 'seat1' && actor !== 'seat2') throw new Error(`${actor} is not a seat and cannot do this`);
+  if (actor !== 'seat1' && actor !== 'seat2') throw new Refusal(`${actor} is not a seat and cannot do this; only seat1 or seat2 can`);
   return actor;
 }
 
@@ -183,8 +214,13 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
     dispute: async (args, origin) => {
       const by = requireSide(actorFor(origin));
       const fact = facts.get(args?.factId);
-      if (!fact) throw new Error(`no such fact: ${args?.factId}`);
-      if (fact.side === by) throw new Error('cannot dispute your own fact');
+      // Byte-identical to FactStore's own "no such fact"/"cannot dispute
+      // your own fact" (model/facts.ts) — same guard, same actor set (A/B),
+      // reached one layer earlier here so `disputes.record` never writes an
+      // orphan row (see this block's own comment above). `otherSide` is
+      // imported from facts.ts, not re-derived, so the two cannot drift.
+      if (!fact) throw new Refusal(`no such fact: ${args?.factId}; use a fact id that was actually filed`);
+      if (fact.side === by) throw new Refusal(`cannot dispute your own fact; only ${otherSide(by)} can dispute it`);
       const d = disputes.record({
         factId: args?.factId,
         by,
@@ -202,7 +238,12 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
     // nothing to write to beyond that, so it only validates and echoes.
     object: async (args, _origin) => {
       const text = String(args?.text ?? '').trim();
-      if (!text) throw new Error('an objection needs text');
+      // Recovery-clause round (scope extension): judged already-compliant,
+      // left unchanged. "Needs text" already states the fix, not just the
+      // state — there is nothing a second clause would add beyond repeating
+      // "provide some" — the same shape as `extract_text requires a
+      // 1-based page number`, below, judged the same way.
+      if (!text) throw new Refusal('an objection needs text');
       return { recorded: true, text };
     },
 
@@ -216,7 +257,13 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
       const actor = actorFor(origin);
       const exhibitId = String(args?.exhibitId ?? '');
       const exhibit = exhibits.get(exhibitId);
-      if (!exhibit) throw new Error(`no such exhibit: ${exhibitId}`);
+      // Byte-identical to DisputeStore/AssessmentStore's own "no such
+      // exhibit" (model/disputes.ts, model/receipts.ts) — one canonical
+      // missing-exhibit message across every store AND this tool body, not
+      // a fourth spelling of the same refusal. Reachable by all four
+      // actors (open_exhibit is granted to A/B in filing and seat1/seat2
+      // in boardRead), so the clause still names no tool.
+      if (!exhibit) throw new Refusal(`no such exhibit: ${exhibitId}; use an exhibit id that was actually filed`);
       receipts.markOpened(actor, exhibitId);
       return exhibit;
     },
@@ -229,16 +276,30 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
     extract_text: async (args, origin) => {
       const seat = requireSeat(actorFor(origin));
       const exhibitId = String(args?.exhibitId ?? '');
+      // Byte-identical to AssessmentStore's own "has not opened"
+      // (model/receipts.ts) — same guard (seat, boardRead), and open_exhibit
+      // is held by ['seat1','seat2'] in boardRead, so it is safe to name.
       if (!receipts.hasOpened(seat, exhibitId)) {
-        throw new Error(`${seat} has not opened ${exhibitId}`);
+        throw new Refusal(`${seat} has not opened ${exhibitId}; call open_exhibit first`);
       }
       const exhibit = exhibits.get(exhibitId);
-      if (!exhibit) throw new Error(`no such exhibit: ${exhibitId}`);
-      if (exhibit.kind !== 'pdf') throw new Error(`${exhibit.id} is not a pdf; extract_text only reads pdf exhibits`);
+      // Same canonical "no such exhibit" string as open_exhibit's own guard,
+      // above, and the model-layer stores — see that guard's comment.
+      if (!exhibit) throw new Refusal(`no such exhibit: ${exhibitId}; use an exhibit id that was actually filed`);
+      if (exhibit.kind !== 'pdf') throw new Refusal(`${exhibit.id} is not a pdf; extract_text only reads pdf exhibits`);
       const page = typeof args?.page === 'number' ? args.page : Number(args?.page);
-      if (!Number.isInteger(page) || page < 1) throw new Error('extract_text requires a 1-based page number');
+      // Recovery-clause round (scope extension): judged already-compliant,
+      // left unchanged — "requires a 1-based page number" already states
+      // the fix (supply one), not just the state.
+      if (!Number.isInteger(page) || page < 1) throw new Refusal('extract_text requires a 1-based page number');
       const text = exhibit.pages?.[page - 1];
-      if (text === undefined) throw new Error(`${exhibit.id} has no page ${page}`);
+      // Not the same call site as quote.ts's page-locator error (that one
+      // guards a `{ page }` LOCATOR object on dispute/record_assessment;
+      // this guards extract_text's own bare `page` argument) — worded to
+      // match its own schema (`pageProp`, webmcp/tools.ts: "page number to
+      // extract text from"), not forced to quote.ts's "locator" language for
+      // an argument this tool does not have.
+      if (text === undefined) throw new Refusal(`${exhibit.id} has no page ${page}; check the page number against the exhibit`);
       return text;
     },
 

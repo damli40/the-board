@@ -28,7 +28,20 @@
   /* Neutrals, dark-appropriate: low numbers sit CLOSE to the ground, high
      numbers approach the ink. Same direction as the light ramp below, so a
      component written against `--color-neutral-700` reads as "quiet text" in
-     both palettes rather than flipping meaning. */
+     both palettes rather than flipping meaning.
+
+     Fix round 2, I2: -100 and -900 used to be UNDEFINED here, so Tailwind's
+     OWN default `--color-neutral-100`/`-900` (its fixed light/dark palette,
+     via `.text-neutral-100{color:var(--color-neutral-100)}` etc — verified
+     against the real compiled build output) won every cascade instead. Those
+     defaults run Tailwind's absolute light-to-dark convention (100 = almost
+     white, 900 = almost black) in EVERY theme, not this project's
+     theme-relative one — so `text-neutral-100` stayed near-white even in
+     light mode, where the ground is also near-white. Completing the ramp
+     here closes the gap for any future use of these two classes; `Hand.tsx`
+     itself was moved onto `--tb-*` tokens directly rather than depend on
+     getting this ramp's direction right. */
+  --color-neutral-100: #1e1e1e;
   --color-neutral-200: #242424;
   --color-neutral-300: #2e2e2e;
   --color-neutral-400: #4a4a4a;
@@ -36,6 +49,7 @@
   --color-neutral-600: #8a8a8a;
   --color-neutral-700: #a6a6a6;
   --color-neutral-800: #c9c9c9;
+  --color-neutral-900: #dedede;
 
   /* Brand. #eea33d is sampled from the logo. */
   --color-accent: #eea33d;
@@ -70,6 +84,91 @@
   /* Measured, not chosen. See design-systems/the-board/tokens.css. */
   --tb-measure: 68ch;
   --tb-leading-prose: 1.55;
+
+  /*
+   * The Board — second token family, ported verbatim (Task 3, brief 3a) from
+   * the Claude Design pass (docs/design/claude-design/the-board.dc.html).
+   * These are NEW names, not a rename of the --color-* family above: several
+   * mean the same ground/ink/rule as an existing --color-* token, kept side
+   * by side on purpose so a reviewer can diff a ported component's inline
+   * styles against the design file line for line. Consumers are migrated
+   * task by task (3, 4, 5, 6), never in bulk.
+   */
+  --tb-ground: #191919;
+  --tb-ground-2: #212020;
+  --tb-ground-3: #2a2827;
+  --tb-ink: #f3f2f2;
+  --tb-ink-2: rgba(243, 242, 242, .68);
+  --tb-ink-3: rgba(243, 242, 242, .62);
+  --tb-rule: rgba(243, 242, 242, .9);
+  --tb-rule-2: rgba(243, 242, 242, .22);
+  --tb-rule-3: rgba(243, 242, 242, .13);
+  --tb-panel: #0f0f0f;
+  --tb-panel-2: #080808;
+  --tb-amber: #eea33d;
+  --tb-amber-ink: #191919;
+  --tb-red: #ec3013;
+  /* Fix round 1, C-M11: white on --tb-red computes ~4.20:1 against #fff,
+     which fails WCAG AA (4.5:1) for the refusal banner's 14px paragraph and
+     12px rows. This is a SEPARATE, darker token used ONLY as that banner's
+     field background — --tb-red itself is untouched and stays in use for
+     chips/accents where it sits behind white-on-solid-chip text at a
+     larger effective size, not a paragraph. #d2260e computes 5.219:1
+     against #fff (RefusalBanner.test.tsx pins and recomputes this exact
+     number), a comfortable margin over 4.5 while keeping the same red
+     character — not redefined per theme, same as --tb-red/--tb-amber. */
+  --tb-red-deep: #d2260e;
+  --tb-never: #e5aa5e;
+  --tb-link: #eea33d;
+  --tb-field: #0f0f0f;
+  --tb-broke-ink: #f3f2f2;
+
+  /*
+   * Fix round 1 (Task 2a): the four actors' TEXT accent, theme-aware. Before
+   * this, `ui/theme.ts`'s `ACTOR_ACCENT.text` held a fixed Tailwind class
+   * (`text-cyan-300` and so on) that a real browser resolves to a FIXED
+   * colour regardless of theme — those Tailwind -300 steps are light pastels
+   * meant to sit on a dark ground, and on the light ground (`--tb-ground` in
+   * the light block below) they compute to roughly 1.2-1.5:1, nowhere near
+   * WCAG's 4.5:1 floor. `ui/Hand.tsx`'s actor labels (`ADVOCATE A`, `SEAT 1`,
+   * ...) were the reported case, but every consumer of `ACTOR_ACCENT.text`
+   * inherits the same defect, because it is the same fixed class everywhere
+   * it is used.
+   *
+   * Fixed at the token, not per-component: these four custom properties
+   * carry the SAME hue family `ACTOR_ACCENT.text` already used (A cyan, B
+   * amber, seat1 violet, seat2 emerald — unrelated to `ACTOR_ACCENT.hue`,
+   * `AgentCard`'s separate pink-for-B palette; unifying the two is a
+   * larger, deferred change, not this fix), with the DARK value left
+   * byte-identical to before (the same `oklch()` triple Tailwind's own
+   * `-300` step compiles to — verified against `node_modules/tailwindcss/
+   * theme.css`) and a NEW, darker LIGHT value chosen to clear 4.5:1.
+   * `ui/theme.ts`'s `ACTOR_ACCENT.text` now points a Tailwind arbitrary-
+   * value class (`text-[var(--tb-actor-a-text)]`) at each of these, so
+   * every existing `className={accent.text}` call site (`Hand.tsx`,
+   * `VerdictPanel.tsx`, `ExhibitList.tsx`) is fixed by this one edit,
+   * with no change to how any of them consumes the field.
+   *
+   * Ratios below computed with the real WCAG relative-luminance formula
+   * against this file's own ground tokens (`--tb-ground` #191919 dark,
+   * #f3f2f2 light) — sRGB values converted from Tailwind's own OKLCH
+   * triples with the standard OKLab matrices (Björn Ottosson's), not
+   * estimated. Dark unchanged from what `text-*-300` already rendered;
+   * light is the new value, chosen from Tailwind's `-800` step for the
+   * same hue (the `-700` step was tried first and rejected: amber-700
+   * computed only 4.50:1, a razor's-edge pass this project has already
+   * been burned by trusting once).
+   *   A (cyan):    dark 12.19:1 (unchanged) · light 6.46:1  (cyan-800)
+   *   B (amber):   dark 12.15:1 (unchanged) · light 6.34:1  (amber-800)
+   *   seat1 (violet): dark 9.48:1 (unchanged) · light 8.21:1 (violet-800)
+   *   seat2 (emerald): dark 11.55:1 (unchanged) · light 6.81:1 (emerald-800)
+   * All four clear 4.5:1 in both themes, every one with a margin of 1.8:1
+   * or more — not a value sitting exactly on the line.
+   */
+  --tb-actor-a-text: oklch(86.5% 0.127 207.078);      /* cyan-300, dark: unchanged */
+  --tb-actor-b-text: oklch(87.9% 0.169 91.605);       /* amber-300, dark: unchanged */
+  --tb-actor-seat1-text: oklch(81.1% 0.111 293.571);  /* violet-300, dark: unchanged */
+  --tb-actor-seat2-text: oklch(84.5% 0.143 164.978);  /* emerald-300, dark: unchanged */
 }
 
 /* Light: the palette the design was actually drawn in. Applies when the
@@ -83,6 +182,7 @@
     --color-text: #191919;
     --color-divider: #191919;
 
+    --color-neutral-100: #eeecea;
     --color-neutral-200: #e9e7e5;
     --color-neutral-300: #d6d3d0;
     --color-neutral-400: #b3aeaa;
@@ -90,6 +190,7 @@
     --color-neutral-600: #6f6963;
     --color-neutral-700: #56514c;
     --color-neutral-800: #332f2c;
+    --color-neutral-900: #241f1c;
 
     --color-warn-ink: #8a4a06;
 
@@ -97,6 +198,31 @@
        it is a good one: the four frames read as machinery embedded in a
        document, which is what they are. */
     --color-panel: #191919;
+
+    /* tb-* light overrides. --tb-amber, --tb-amber-ink and --tb-red are not
+       redefined here — the design does not redefine them in light either. */
+    --tb-ground: #f3f2f2;
+    --tb-ground-2: #eae8e6;
+    --tb-ground-3: #e0ddda;
+    --tb-ink: #201e1d;
+    --tb-ink-2: rgba(32, 30, 29, .68);
+    --tb-ink-3: rgba(32, 30, 29, .66);
+    --tb-rule: #201e1d;
+    --tb-rule-2: rgba(32, 30, 29, .24);
+    --tb-rule-3: rgba(32, 30, 29, .14);
+    --tb-panel: #191919;
+    --tb-panel-2: #0f0f0f;
+    --tb-never: #8a4a06;
+    --tb-link: #8a4a06;
+    --tb-field: #f3f2f2;
+    --tb-broke-ink: #201e1d;
+
+    /* See the dark :root block's own comment for the full ratio table and
+       why the -800 step, not -700. */
+    --tb-actor-a-text: oklch(45% 0.085 224.283);       /* cyan-800, light: 6.46:1 */
+    --tb-actor-b-text: oklch(47.3% 0.137 46.201);      /* amber-800, light: 6.34:1 */
+    --tb-actor-seat1-text: oklch(43.2% 0.232 292.759); /* violet-800, light: 8.21:1 */
+    --tb-actor-seat2-text: oklch(43.2% 0.095 166.913); /* emerald-800, light: 6.81:1 */
   }
 }
 
@@ -109,6 +235,7 @@
   --color-text: #191919;
   --color-divider: #191919;
 
+  --color-neutral-100: #eeecea;
   --color-neutral-200: #e9e7e5;
   --color-neutral-300: #d6d3d0;
   --color-neutral-400: #b3aeaa;
@@ -116,9 +243,32 @@
   --color-neutral-600: #6f6963;
   --color-neutral-700: #56514c;
   --color-neutral-800: #332f2c;
+  --color-neutral-900: #241f1c;
 
   --color-warn-ink: #8a4a06;
   --color-panel: #191919;
+
+  --tb-ground: #f3f2f2;
+  --tb-ground-2: #eae8e6;
+  --tb-ground-3: #e0ddda;
+  --tb-ink: #201e1d;
+  --tb-ink-2: rgba(32, 30, 29, .68);
+  --tb-ink-3: rgba(32, 30, 29, .66);
+  --tb-rule: #201e1d;
+  --tb-rule-2: rgba(32, 30, 29, .24);
+  --tb-rule-3: rgba(32, 30, 29, .14);
+  --tb-panel: #191919;
+  --tb-panel-2: #0f0f0f;
+  --tb-never: #8a4a06;
+  --tb-link: #8a4a06;
+  --tb-field: #f3f2f2;
+  --tb-broke-ink: #201e1d;
+
+  /* See the dark :root block's own comment for the full ratio table. */
+  --tb-actor-a-text: oklch(45% 0.085 224.283);       /* cyan-800, light: 6.46:1 */
+  --tb-actor-b-text: oklch(47.3% 0.137 46.201);      /* amber-800, light: 6.34:1 */
+  --tb-actor-seat1-text: oklch(43.2% 0.232 292.759); /* violet-800, light: 8.21:1 */
+  --tb-actor-seat2-text: oklch(43.2% 0.095 166.913); /* emerald-800, light: 6.81:1 */
 }
 
 /*
@@ -135,3 +285,47 @@ body {
   color: var(--color-text);
   font-family: var(--font-body);
 }
+
+/*
+ * The rest of this file ports the design's plain-CSS block verbatim (Task 3,
+ * brief 3a) — the grid track counts, the two keyframes, and the hover/focus
+ * classes that stand in for the design's `style-hover` / `style-focus`
+ * pseudo-attributes (Global Constraint 9: those have no inline-style
+ * equivalent in real CSS, so each becomes a named class here instead, put on
+ * the element next to its inline `style={{}}`).
+ */
+
+/* Fixed-count rows. Track counts are explicit so a set of four can never
+   resolve to three tracks and leave an unfilled row: 4 to 2 to 1, and the
+   three-up record row goes 3 to 1. Cannot be expressed inline. */
+.tb-cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1199px) { .tb-cols4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 619px) { .tb-cols4 { grid-template-columns: minmax(0, 1fr); } }
+.tb-cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1099px) { .tb-cols3 { grid-template-columns: minmax(0, 1fr); } }
+
+@keyframes tb-run { 0% { background-position: 0 0 } 100% { background-position: 24px 0 } }
+@keyframes tb-caret { 0%, 49% { opacity: 1 } 50%, 100% { opacity: 0 } }
+
+/* Hover/focus classes. :focus-visible is an accessibility requirement, not
+   decoration — every interactive element ported from the design keeps one of
+   the tb-focus-* classes below, never dropped for a plain `outline: none`.
+   Only classes an actual interactive element uses are defined here — the
+   phase rail's per-phase items are display-only (see PhaseRail.tsx's own
+   comment on why they are not buttons), so they carry neither.
+
+   Fix round 1, C1: every one of these lost to an inline declaration of the
+   SAME property on the SAME element (`all: 'unset'` on the reset buttons,
+   `outline: 'none'` on the double-prompt input) — inline "normal" always
+   outranks a stylesheet selector regardless of specificity, so the class
+   below never took effect and no control had a visible focus ring. Per the
+   CSS cascade, an `!important` stylesheet declaration is the one thing that
+   DOES outrank an inline "normal" one, origin-and-importance order coming
+   before specificity — so each rule here carries `!important` rather than
+   relying on selector weight. This is deliberate and load-bearing, not a
+   specificity workaround to "clean up" later: as long as the elements it
+   targets keep resetting themselves with `all: unset`, removing `!important`
+   silently reintroduces this exact defect. */
+.tb-hover-ink2:hover { background: var(--tb-ink-2) !important; }
+.tb-hover-amber-dark:hover { background: #d98f2b !important; }
+.tb-focus-amber:focus-visible { outline: 2px solid var(--tb-amber) !important; outline-offset: 2px !important; }

@@ -2,7 +2,10 @@ import { ORIGIN, type Basis, type Outcome, type Seat, type Verdict } from './typ
 import type { AssessmentStore, Receipts } from './receipts';
 import type { FactStore } from './facts';
 import type { ExhibitStore } from './exhibits';
-import type { Ledger } from '../webmcp/ledger';
+// Task 5, fix round 2, N1: cite's "no assessment held" guard is the last
+// link in the read-receipt chain and fires on the demo path — marked
+// deliberate, same class as impl.ts's own guards.
+import { Refusal, type Ledger } from '../webmcp/ledger';
 
 /**
  * Ruling 1 (controller, task 6): this constructor takes FOUR arguments, not
@@ -26,7 +29,10 @@ export class VerdictStore {
   /** No assessment, no citation. The last link in the read-receipt chain. */
   cite(seat: Seat, factId: string): string[] {
     if (!this.assessments.heldFor(seat, factId)) {
-      throw new Error(`${seat} holds no assessment for ${factId}`);
+      // record_assessment is safe to name: it is held by ['seat1','seat2']
+      // in boardRead, and a seat is the only actor that can reach `cite`
+      // (verdictDraft, actors seat1/seat2) in the first place.
+      throw new Refusal(`${seat} holds no assessment for ${factId}; call record_assessment for it first`);
     }
     const list = this.citations.get(seat) ?? [];
     if (!list.includes(factId)) list.push(factId);
@@ -60,9 +66,26 @@ export class VerdictStore {
   ): Verdict {
     const opened = this.receipts.openedBy(seat);
     const cited = [...(this.citations.get(seat) ?? [])];
+    // Case-normalise, do not validate membership. `outcome` arrives from a
+    // model, and the filmed run puts two DIFFERENT model providers behind
+    // seat1/seat2 — one may write "Upheld", the other "UPHELD", and nothing
+    // upstream guarantees they agree on case. `computeSplit`'s
+    // `a.outcome !== b.outcome` is case-sensitive, so two seats that agree
+    // could otherwise print THE SEATS DISAGREE. Fixed here, once, at the
+    // single point every draft is stored, so both readers (`computeSplit`
+    // and `VerdictPanel`'s `outcome === 'UPHELD'` styling check) see it
+    // normalised without being touched themselves.
+    //
+    // This is NOT membership validation and must not become it — see the
+    // asymmetry note above `draft`. A value outside the `Outcome` union
+    // (the offline script ships `outcome: 'unproven'`) is uppercased to
+    // `'UNPROVEN'` and stored as-is, still outside the union, still
+    // rendered. Refusing an unrecognised outcome here would be the same
+    // widened refusal this file already warns against.
+    const normalized = (typeof outcome === 'string' ? outcome.toUpperCase() : outcome) as Outcome;
     const verdict: Verdict = {
       seat,
-      outcome,
+      outcome: normalized,
       cited,
       opened,
       neverOpened: allExhibitIds.filter((id) => !opened.includes(id)),

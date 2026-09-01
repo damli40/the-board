@@ -1,146 +1,95 @@
 import type { Handler } from '@netlify/functions';
-import Anthropic from '@anthropic-ai/sdk';
-import {
-  DEFAULT_MODEL,
-  parsePanelRequest,
-  schemaIsUnknown,
-  toMessagesRequest,
-  toProxyPlan,
-} from '../../src/proxy/anthropic';
-import {
-  checkOrigin,
-  checkRate,
-  checkRoomCode,
-  EMPTY_RATE_STATE,
-  ROOM_CODE_HEADER,
-  type RateState,
-} from '../../src/proxy/gate';
+import { handleProxy, type ProxyEnv } from '../../src/proxy/handler';
 
 // Holds the provider key server-side so it never ships in client code — the
 // repo is public (CLAUDE.md §0 "No secrets in client code"). One deployment
 // of this function per panel origin, each with its own MODEL_API_KEY set in
 // that Netlify site's environment, never in a file checked into the repo.
-// The key is read here and handed to the SDK client constructed here; it is
-// never echoed into a response body, and nothing that reaches the browser
-// carries it.
+// Task 1 adds a second way to supply a key: a caller can bring their own via
+// the `x-model-key` header, and it beats this site's own — see handler.ts,
+// gate order step 5, for which one wins and why that is safe (checkRoomCode
+// still runs regardless, ruling 6: a caller-supplied key changes whose
+// account is billed, not whether a public endpoint may be driven by
+// strangers). Fix round 1, C1: bringing your own key is also what UNLOCKS
+// choosing your own provider or base URL — see step 6 in handler.ts.
 //
 // This function is defence in depth, not the layer that actually holds. The
 // layer that holds is Task 4: `exposedTo` scoping WebMCP tools to an origin,
 // enforced by the browser. Keeping the key off the client stops it leaking
 // through the bundle; it does not by itself decide what a seat may do.
 //
-// FINAL REVIEW, BLOCKER 1: this function used to forward `event.body`
-// upstream verbatim and return the upstream body verbatim. It translated
-// nothing in either direction, and the panel speaks a shape no provider
-// accepts or returns, so deployed it would have failed silently: the panel
-// showing a goal line and then nothing. Both translations now happen here,
-// in `src/proxy/anthropic.ts`, which is where the tests can reach them.
+// FINAL REVIEW, BLOCKER 1 (kept from the pre-BYOK version of this file): this
+// function used to forward `event.body` upstream verbatim and return the
+// upstream body verbatim. It translated nothing in either direction, and the
+// panel speaks a shape no provider accepts or returns, so deployed it would
+// have failed silently: the panel showing a goal line and then nothing. Both
+// translations still happen at the boundary — now in `src/proxy/handler.ts`
+// and its per-provider wire adapters (`anthropic.ts`, `openai.ts`,
+// `google.ts`), so tests can reach them.
 //
-// Environment:
-//   MODEL_API_KEY   (required) the provider key. Never committed.
-//   MODEL_ID        (optional) defaults to claude-opus-5.
-//   MODEL_BASE_URL  (optional) overrides the API base URL. Absent means the
-//                   first-party Anthropic Messages API, which is the default
-//                   provider this adapter targets.
+// This file itself is now a thin shell (task 1, §1d): read process.env,
+// adapt Netlify's event shape to handleProxy's plain ProxyInput/ProxyEnv,
+// return what it says. Every gate, every status code and every env var is
+// documented in handler.ts, which is where they actually execute now — this
+// file should not need to change when a gate's reasoning changes, and
+// letting comments drift apart between two files that both claim to explain
+// the same gate is exactly the class of defect this project keeps finding
+// (see Ruling 4 on the phase rail,
+// docs/superpowers/plans/2026-08-31-the-board-finish.md).
+//
+// Environment (see handler.ts for the full resolution order of each):
+//   MODEL_API_KEY   (optional) this site's own provider key. A caller's own
+//                   x-model-key header beats it. Absent AND no header -> 503.
+//   MODEL_PROVIDER  (optional) defaults to 'anthropic'.
+//   MODEL_ID        (optional) defaults to the provider's own default model.
+//                   x-model-id is allowed from ANY caller, key or no key.
+//   MODEL_BASE_URL  (optional) pins the base URL for THIS SITE'S OWN key
+//                   only — outranks the provider's own default when no
+//                   caller key is in play. A caller who brings their own key
+//                   is never routed through it (fix round 2, item 2, revising
+//                   round 1's C1 fix: routing a caller's own key through the
+//                   operator's pin sent it to the operator's gateway instead
+//                   of the provider's real endpoint). Whoever owns the key
+//                   decides where it goes.
 //   ROOM_CODE       (REQUIRED) the shared code a caller must present in the
 //                   `x-room-code` header. Absent means this function refuses
-//                   every request — see gate.ts on failing closed.
+//                   every request — see gate.ts on failing closed. Required
+//                   in every key mode, never bypassed by a caller's own key.
 //   RATE_LIMIT      (optional) requests per window per container, default 60.
 //
+// ⚠️ x-model-provider and x-model-base-url are ONLY honoured from a caller
+// who ALSO sends x-model-key (fix round 1, C1 — the headline finding of the
+// first review). Without that pairing, a caller could point this SITE'S OWN
+// key at an arbitrary host with nothing but the room code — and the demo
+// room code is committed to a public repo. A caller who sends a targeting
+// header with no key of their own is refused with 400, not silently ignored.
+// See handler.ts's gate-order comment (steps 5-8) for the exact resolution.
+//
 // ⚠️ THE REAL CEILING IS NOT IN THIS FILE. Set a spend limit on the API key
-// in the provider console. A stateless function running in many containers
-// cannot count globally; `checkRate` below bounds one container, nothing
-// more, and docs/evidence/deploy.md says so too.
-const RATE_WINDOW_MS = 60_000;
-const DEFAULT_RATE_LIMIT = 60;
-
-// Per-container, and only per-container. See checkRate's own comment.
-let rateState: RateState = EMPTY_RATE_STATE;
-
-// The five origins this function will accept a browser Origin header from.
-// Written out rather than imported from record/src/config/origins.ts because
-// that module reads `import.meta.env` to choose dev or prod, and this
-// function runs in plain Node where that resolution is not the one we want:
-// a deployed function must accept the deployed origins whatever the build
-// thought. Defence in depth only (see checkOrigin).
-const ALLOWED_ORIGINS = [
-  'https://theboard-record.netlify.app',
-  'https://theboard-a.netlify.app',
-  'https://theboard-b.netlify.app',
-  'https://theboard-seat1.netlify.app',
-  'https://theboard-seat2.netlify.app',
-  'http://localhost:8080',
-  'http://localhost:8081',
-  'http://localhost:8082',
-  'http://localhost:8083',
-  'http://localhost:8084',
-];
-
+// in the provider's console. A stateless function running in many containers
+// cannot count globally; handler.ts's rate limiter bounds one container,
+// nothing more, and docs/evidence/deploy.md says so too.
 export const handler: Handler = async (event) => {
-  if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'POST only' };
+  const env: ProxyEnv = {
+    ROOM_CODE: process.env.ROOM_CODE,
+    MODEL_API_KEY: process.env.MODEL_API_KEY,
+    MODEL_ID: process.env.MODEL_ID,
+    MODEL_PROVIDER: process.env.MODEL_PROVIDER,
+    MODEL_BASE_URL: process.env.MODEL_BASE_URL,
+    RATE_LIMIT: process.env.RATE_LIMIT,
+    // Never true here. This is a public, deployed endpoint; a local dev
+    // server (Ollama, LM Studio) reachable at a private address is a
+    // dev-only convenience — see vite.config.ts's dev middleware, the one
+    // place this is allowed to flip.
+    allowPrivateHosts: false,
+  };
 
-  // Gate BEFORE any parsing, and long before the key is read: a rejected
-  // caller should cost this function as little as possible, and must never
-  // reach a code path that could touch the provider.
-  const headers = event.headers ?? {};
-  const origin = checkOrigin(headers.origin, ALLOWED_ORIGINS);
-  if (!origin.ok) return { statusCode: origin.statusCode, body: origin.body };
-
-  const room = checkRoomCode(headers[ROOM_CODE_HEADER], process.env.ROOM_CODE);
-  if (!room.ok) return { statusCode: room.statusCode, body: room.body };
-
-  const limit = Number(process.env.RATE_LIMIT ?? DEFAULT_RATE_LIMIT);
-  const rate = checkRate(rateState, Date.now(), Number.isFinite(limit) ? limit : DEFAULT_RATE_LIMIT, RATE_WINDOW_MS);
-  rateState = rate.state;
-  if (!rate.result.ok) return { statusCode: rate.result.statusCode, body: rate.result.body };
-
-  const key = process.env.MODEL_API_KEY; // set per Netlify site, never committed
-  if (!key) return { statusCode: 500, body: 'proxy not configured' };
-
-  let request;
-  try {
-    const panelRequest = parsePanelRequest(event.body);
-    for (const tool of panelRequest.tools ?? []) {
-      if (schemaIsUnknown(tool.name)) {
-        // Not fatal, but never silent: the model is about to be shown a tool
-        // whose parameters this adapter could not describe. See
-        // UNKNOWN_TOOL_SCHEMA in src/proxy/anthropic.ts for why the call is
-        // still forwarded rather than dropped.
-        console.warn(`model-proxy: no input schema in the tool catalogue for "${tool.name}"`);
-      }
-    }
-    request = toMessagesRequest(panelRequest, { model: process.env.MODEL_ID ?? DEFAULT_MODEL });
-  } catch (err) {
-    // A malformed request is the caller's fault and is worth saying so, in a
-    // status the panel's own `res.ok` check turns into a visible
-    // TRANSPORT ERROR line rather than a hang.
-    return { statusCode: 400, body: err instanceof Error ? err.message : 'bad request' };
-  }
-
-  const client = new Anthropic({
-    apiKey: key,
-    ...(process.env.MODEL_BASE_URL ? { baseURL: process.env.MODEL_BASE_URL } : {}),
-  });
-
-  try {
-    const response = await client.messages.create(request);
-    return {
-      statusCode: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(toProxyPlan(response)),
-    };
-  } catch (err) {
-    // Most-specific first, so a network failure and a rate limit do not both
-    // read as one anonymous 502. Every branch passes a real status through,
-    // because the panel renders anything non-2xx as a TRANSPORT ERROR line
-    // carrying the status. A proxy that flattened everything to 502 would
-    // make "out of credit" and "DNS is down" indistinguishable on the day.
-    if (err instanceof Anthropic.APIConnectionError) {
-      return { statusCode: 504, body: `model provider unreachable: ${err.message}` };
-    }
-    if (err instanceof Anthropic.APIError) {
-      return { statusCode: err.status ?? 502, body: `model provider error ${err.status ?? ''}: ${err.message}` };
-    }
-    return { statusCode: 502, body: `model call failed: ${err instanceof Error ? err.message : String(err)}` };
-  }
+  return handleProxy(
+    {
+      method: event.httpMethod,
+      headers: (event.headers ?? {}) as Record<string, string | undefined>,
+      body: event.body ?? null,
+    },
+    env
+  );
 };

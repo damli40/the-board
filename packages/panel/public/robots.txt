@@ -1,0 +1,10 @@
+# This same build deploys unchanged to four separate origins (A, B, seat1,
+# seat2 — see packages/panel/netlify.toml's own header comment). Each one is
+# one agent's frame, not a page in its own right: it holds only the tools
+# the record handed to it, and it is meant to be opened inside the record
+# page, not visited on its own. A search result pointing straight at one of
+# these origins would show a bare agent panel with no case behind it, which
+# misrepresents what this project is — so indexing is disallowed here
+# entirely, not scoped to a subpath, on all four origins alike.
+User-agent: *
+Disallow: /

@@ -4,7 +4,8 @@
 // content. See docs/evidence/hand-run.md for how this is actually used
 // while filming: the case is seeded here, BEFORE recording starts
 // ("Seed the case before filming... deterministic, never improvised on
-// camera" — STORYBOARD.md, Production notes). What gets filmed live is the
+// camera" — STORYBOARD.md, Production notes; that file is kept locally and
+// is deliberately not published, so the reference is for the maintainer). What gets filmed live is the
 // WebMCP-tool-driven part — opening, assessing, citing, drafting,
 // appealing, confirming — not the act of typing this content in.
 //

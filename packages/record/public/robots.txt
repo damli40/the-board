@@ -1,0 +1,5 @@
+# The Board is one public page: the case file, the four agents, and the
+# record of what each one did. Nothing on this origin needs to be hidden
+# from a search engine.
+User-agent: *
+Allow: /

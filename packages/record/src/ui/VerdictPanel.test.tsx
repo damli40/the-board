@@ -122,6 +122,29 @@ describe('VerdictPanel split table', () => {
     expect(screen.getByTestId('calls-seat1')).not.toHaveTextContent('extract_text');
   });
 
+  // Task 4 (finish plan, brief 4c): the draft-verdict block gets the design's
+  // heading and sub-line (copy-final.md, verbatim), wrapped around the same
+  // real seat cards and split table — never the design's own fabricated
+  // "verdictText" paragraph, which Global Constraint 2 names as invented
+  // data to refuse.
+  it('carries the "Draft verdict" heading and its verbatim sub-line', async () => {
+    const ledger = await ledgerWithTheSplit();
+    render(
+      <VerdictPanel
+        seat1={verdict('seat1', 'UPHELD', [])}
+        seat2={verdict('seat2', 'UPHELD', [])}
+        facts={[]}
+        exhibits={[]}
+        assessments={[]}
+        ledger={ledger}
+        grantedTools={{ seat1: BOARD_TOOLS, seat2: BOARD_TOOLS }}
+      />
+    );
+
+    expect(screen.getByText('Draft verdict')).toBeInTheDocument();
+    expect(screen.getByText('Assembled with draft_verdict from both seats. Not in force until a person confirms it.')).toBeInTheDocument();
+  });
+
   it('still says "none" for a seat that holds nothing and called nothing', async () => {
     const ledger = new Ledger(() => 1000);
     render(

@@ -1,11 +1,19 @@
 // Offline mode: a scripted planner that stands in for the model.
 //
-// WHY THIS EXISTS. Locally there is no `/.netlify/functions/model-proxy` —
-// Vite does not serve it — so pressing Run has only ever produced a 404
-// TRANSPORT ERROR line. No live provider call has ever succeeded in this
-// project, which means the running, refused and not-granted states have never
-// been seen outside a test, and were on course to be exercised for the first
-// time on camera.
+// WHY THIS EXISTS. Offline mode needs no provider key and no signup, so a
+// judge — or a recording — can see the running, refused and not-granted
+// states without touching a model account at all. That stays useful even
+// now that a live call works: Vite's own dev middleware serves
+// `/.netlify/functions/model-proxy` locally (task 1), and a real round-trip
+// to Anthropic has been driven from it, with no Netlify CLI — first with a
+// deliberately-invalid key, returning a genuine
+// `502 model provider (anthropic) error 401: API key is invalid.`, then
+// again through this panel's own BYOK headers (task 2b), confirmed to reach
+// the real API and reject only for the fake key. The comment that used to
+// stand here said no live provider call had ever succeeded in this project;
+// that is no longer true. What has NOT yet happened is a call with a valid,
+// funded key — that is what the hand-run's pre-flight step still exists to
+// check before anything is recorded.
 //
 // WHAT IS AND IS NOT FAKED. Only the DECISION is scripted — the part a model
 // would otherwise make. Everything downstream is real: the calls go through

@@ -4,6 +4,25 @@ import type { ToolRegistry } from './registry';
 
 const APPEAL_LIFETIME: Record<Side, Lifetime> = { A: 'appealA', B: 'appealB' };
 
+/**
+ * Every phase, in order. Task 3 (finish plan, Ruling 4): this array used to
+ * be written out twice, independently — App.tsx's header row and Docket.tsx's
+ * PhaseRibbon — sharing no constant, which is exactly the defect class this
+ * project keeps finding: two renderings of the same state that can disagree
+ * with each other. This is now the one definition; `ui/PhaseRail.tsx` reads
+ * it directly rather than declaring its own list.
+ */
+export const PHASES: Phase[] = ['FILING', 'REVIEW', 'VERDICT', 'CONFIRMED'];
+
+/**
+ * What pressing "advance" does from each phase. No entry for VERDICT: the
+ * move into CONFIRMED is a person's action (`ConfirmBar`'s confirm button),
+ * never a button on the phase rail — see `ui/PhaseRail.tsx`'s own header
+ * comment. Previously declared inline in App.tsx; moved here for the same
+ * reason PHASES was: one definition, not one per consumer.
+ */
+export const NEXT_PHASE: Partial<Record<Phase, Phase>> = { FILING: 'REVIEW', REVIEW: 'VERDICT' };
+
 export class PhaseMachine {
   phase: Phase = 'FILING';
   private spent = new Set<Side>();

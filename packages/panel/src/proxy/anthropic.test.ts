@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import type Anthropic from '@anthropic-ai/sdk';
 import {
   DEFAULT_MAX_TOKENS,
   DEFAULT_MODEL,
@@ -9,6 +8,9 @@ import {
   toApiMessages,
   toMessagesRequest,
   toProxyPlan,
+  type AnthropicMessage,
+  type AnthropicMessageCreateParams,
+  type AnthropicTool,
 } from './anthropic';
 import { TOOLS } from '../../../record/src/webmcp/tools';
 
@@ -34,7 +36,7 @@ import { TOOLS } from '../../../record/src/webmcp/tools';
 // ---------------------------------------------------------------------------
 
 /** Every recorded response shares this envelope; only content/stop differ. */
-function recorded(overrides: Partial<Anthropic.Message>): Anthropic.Message {
+function recorded(overrides: Partial<AnthropicMessage>): AnthropicMessage {
   return {
     id: 'msg_01RecordedFixtureForTheBoard',
     type: 'message',
@@ -200,8 +202,8 @@ describe('response translation: recorded provider response -> ProxyPlan', () => 
  * server tools, which carry no `name`. This adapter only ever emits custom
  * tools, so narrowing here keeps the assertions readable.
  */
-function customTools(request: Anthropic.MessageCreateParamsNonStreaming): Anthropic.Tool[] {
-  return (request.tools ?? []) as Anthropic.Tool[];
+function customTools(request: AnthropicMessageCreateParams): AnthropicTool[] {
+  return (request.tools ?? []) as AnthropicTool[];
 }
 
 describe('request translation: panel request -> Messages API request', () => {

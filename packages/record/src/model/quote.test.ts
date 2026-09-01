@@ -40,7 +40,7 @@ describe('checkQuote', () => {
     const r = checkQuote(textExhibit, {}, 'Delivery was rejected.');
     expect(r).toEqual({
       verifiable: true, found: false,
-      reason: 'quote not found in E1 at the given locator'
+      reason: 'quote not found in E1 at the given locator; check the exact wording and the locator'
     });
   });
 
@@ -66,7 +66,7 @@ describe('checkQuote', () => {
 
   it('reports a page that does not exist rather than silently searching everything', () => {
     expect(checkQuote(pdfExhibit, { page: 9 }, 'anything')).toEqual({
-      verifiable: true, found: false, reason: 'E2 has no page 9'
+      verifiable: true, found: false, reason: 'E2 has no page 9; check the locator against the exhibit'
     });
   });
 
@@ -79,7 +79,7 @@ describe('checkQuote', () => {
 
   it('refuses an empty quote, because nothing is not a proof', () => {
     expect(checkQuote(textExhibit, {}, '   ')).toEqual({
-      verifiable: true, found: false, reason: 'an empty quote proves nothing' });
+      verifiable: true, found: false, reason: 'an empty quote proves nothing; quote the exact passage relied on' });
   });
 
   it('declares a failed text extraction unverifiable without calling it an image', () => {

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!--
+      Fix round 1, I1 + M3. This page used to carry a pinned-theme script
+      copied from packages/record/index.html's own blocking script (reading
+      `localStorage['board:theme']` and setting `data-theme`). That was dead
+      code on every real deploy of this file: `board:theme` is written in
+      exactly one place in this repo — Masthead.tsx, which only renders on
+      the record origin — and `localStorage` is partitioned per origin, so a
+      pin made on the record can never be read from any of the four panel
+      origins this same build ships to. It looked like it worked in a local
+      browser check only because that check set the key by hand on the same
+      origin it was reading from, which is not how a pin ever actually
+      reaches here. Dropped rather than kept with a caveat: this page now
+      has no way to know about a pin, so it follows the OS's own
+      prefers-color-scheme, nothing else — same reasoning for dropping the
+      old `:root[data-theme='light']` rule and the `:not([data-theme='dark'])`
+      guard below, both unreachable for the same reason.
+
+      That also means the old static `theme-color` meta (I1: it never
+      changed, so a light-OS/dark-default mismatch showed the wrong colour
+      in mobile browser chrome) has no script left to sync it from. Two
+      `media`-scoped meta tags do the same job declaratively, with no JS —
+      the standard way to keep `theme-color` in step with
+      prefers-color-scheme when there's no pin to honour.
+
+      Standalone HTML for the same reason as packages/record/public/404.html
+      (see that file's own comment): Netlify serves this file directly for
+      any unmatched path on all four panel origins, and it cannot link
+      /src/styles.css (dev-only path, content-hashed filename once built),
+      so the handful of theme.css tokens this page needs are inlined below.
+
+      No link back to the record here, on purpose — the brief itself: "This
+      build is deployed to four different origins and the record's address
+      is not knowable from inside a static file here without hardcoding
+      one." (task-9-brief.md, "The panel's 404" — verified verbatim, not
+      paraphrased into the quote marks, the mistake fix round 1 found here
+      last time.) robots.txt in this same directory disallows indexing this
+      origin at all.
+    -->
+    <meta name="theme-color" content="#191919" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f3f2f2" media="(prefers-color-scheme: light)" />
+    <title>Not found — The Board</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #191919;
+        --ink: #f3f2f2;
+        --ink-2: rgba(243, 242, 242, 0.68);
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          color-scheme: light;
+          --bg: #f3f2f2;
+          --ink: #201e1d;
+          --ink-2: rgba(32, 30, 29, 0.68);
+        }
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 16px;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: Archivo, system-ui, sans-serif;
+      }
+      main {
+        max-width: 68ch;
+      }
+      h1 {
+        margin: 0 0 16px;
+        font-size: 1.5rem;
+        line-height: 1.3;
+      }
+      p {
+        margin: 0 0 16px;
+        line-height: 1.55;
+        color: var(--ink-2);
+      }
+      p:last-child {
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>That page is not part of this agent's frame.</h1>
+      <p>This origin holds one agent panel and nothing else. It is meant to be opened inside the record page, which is where the case file and the tool registry live.</p>
+      <p>Open the record page and this frame appears inside it.</p>
+    </main>
+  </body>
+</html>

@@ -68,3 +68,14 @@ const isProdBuild = import.meta.env?.PROD === true;
 export const PARENT_ORIGIN = isProdBuild ? PROD_PARENT_ORIGIN : DEV_PARENT_ORIGIN;
 
 export const ORIGIN: Record<Actor, string> = isProdBuild ? PROD_ORIGINS : DEV_ORIGINS;
+
+// ---- The demo room code (task 1, ruling 1) ----
+//
+// The shared secret every panel presents in `x-room-code` (gate.ts) for the
+// filmed/judged run. Defined here rather than in Task 7, which documents it
+// in RUNNING.md, because Task 1's dev middleware (packages/panel/vite.config.ts)
+// needs a concrete default before a deployer has ever set ROOM_CODE — and
+// this file is already the single source of truth every origin string in the
+// repo reads from, so a reader who goes looking for "the room code" finds it
+// next to them rather than one file away.
+export const DEMO_ROOM_CODE = 'board-demo-2026';

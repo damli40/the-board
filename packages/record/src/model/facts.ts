@@ -1,4 +1,22 @@
 import type { Fact, Locator, Side } from './types';
+// Task 5, fix round 2, N1: the self-dealing guards (concede/dispute your
+// own fact) and the missing-fact guard are deliberate refusals, same class
+// as impl.ts's own — marked so they don't render as broke.
+import { Refusal } from '../webmcp/ledger';
+
+// Recovery-clause note (finish task, refusal-copy round): a self-dealing
+// refusal has no retry for the ACTING side — the honest next move is to
+// name who can act, not a tool to call again (there is no tool for "concede
+// on someone else's behalf"). `Side` is exactly two values, so the other
+// side is always this simple flip — never a guess and never text the caller
+// supplied.
+//
+// Exported: `tools/impl.ts`'s own `dispute` body pre-checks this exact
+// self-dealing rule before ever calling `disputes.record` (see that file's
+// own comment), and the finish task's scope-extension round requires that
+// guard's message end up byte-identical to this one's — sharing the
+// function is what keeps the two from drifting apart by hand.
+export const otherSide = (s: Side): Side => (s === 'A' ? 'B' : 'A');
 
 export interface FactInput {
   side: Side;
@@ -25,20 +43,28 @@ export class FactStore {
 
   private require(id: string): Fact {
     const f = this.items.find((x) => x.id === id);
-    if (!f) throw new Error(`no such fact: ${id}`);
+    // file_fact IS the tool that produces a real fact id, and every real
+    // path into this guard (the `concede` tool; `attachDispute` reached via
+    // the `dispute` tool) is A/B in `filing`, the same actor set that holds
+    // file_fact — so naming it would not be wrong the way the exhibit
+    // guards' cross-lifetime sharing makes read_board/search_exhibits
+    // wrong there. Left conservative anyway: this is a PRIVATE method any
+    // future FactStore caller can reach, and under-claiming a recovery
+    // clause is safe where a wrong one is not (this task's own brief).
+    if (!f) throw new Refusal(`no such fact: ${id}; use a fact id that was actually filed`);
     return f;
   }
 
   concede(id: string, by: Side): Fact {
     const f = this.require(id);
-    if (f.side === by) throw new Error('cannot concede your own fact');
+    if (f.side === by) throw new Refusal(`cannot concede your own fact; only ${otherSide(by)} can concede it`);
     f.status = 'conceded';
     return f;
   }
 
   dispute(id: string, by: Side): Fact {
     const f = this.require(id);
-    if (f.side === by) throw new Error('cannot dispute your own fact');
+    if (f.side === by) throw new Refusal(`cannot dispute your own fact; only ${otherSide(by)} can dispute it`);
     f.status = 'disputed';
     return f;
   }
@@ -53,7 +79,7 @@ export class FactStore {
    */
   attachDispute(factId: string, disputeId: string, by: Side): Fact {
     const f = this.require(factId);
-    if (f.side === by) throw new Error('cannot dispute your own fact');
+    if (f.side === by) throw new Refusal(`cannot dispute your own fact; only ${otherSide(by)} can dispute it`);
     f.status = 'disputed';
     f.disputeId = disputeId;
     return f;

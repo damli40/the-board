@@ -1,20 +1,21 @@
 // The record page — the parent origin, and the only origin that owns the
 // WebMCP registry. Everything a viewer needs to see this project's claim —
 // that the boundary is enforced by the browser, not narrated by the app —
-// lives on this one page: the split manifest per actor, the phase ribbon and
-// ledger tape, the exhibit list, the verdict panel with NO RULE CITED and
-// the citation trace, and the confirm bar.
+// lives on this one page: the masthead and phase rail, the refusal banner,
+// the double-prompt bar, the split manifest per actor, the ledger tape, the
+// exhibit list, the verdict panel with NO RULE CITED and the citation trace,
+// and the confirm bar.
 //
 // Task 9 wires the tool bodies (`src/tools/impl.ts`) into the registry below
 // and loads the fixed scenario fixture (`src/scenario.ts`) once FILING
 // opens, so the exhibit list, docket and (once a seat reads and drafts) the
 // verdict panel all have real material the instant the page comes up.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Actor, Phase } from './model/types';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import type { Actor, Exhibit, Fact } from './model/types';
 import { ORIGIN } from './config/origins';
 import { webmcpStatus } from './webmcp/env';
 import { ToolRegistry, type ModelContextLike, type Manifest as ManifestData } from './webmcp/registry';
-import { PhaseMachine } from './webmcp/phases';
+import { PhaseMachine, NEXT_PHASE } from './webmcp/phases';
 import { Ledger } from './webmcp/ledger';
 import { ExhibitStore } from './model/exhibits';
 import { Receipts, AssessmentStore } from './model/receipts';
@@ -24,14 +25,98 @@ import { VerdictStore } from './model/verdict';
 import { CaseOutcome } from './model/outcome';
 import { createToolImpl } from './tools/impl';
 import { loadScenario } from './scenario';
-import { ACTORS, ACTOR_LABEL, ACTOR_ACCENT } from './ui/theme';
-import { Manifest } from './ui/Manifest';
-import { Docket } from './ui/Docket';
+import { ACTORS, ACTOR_LABEL } from './ui/theme';
+import { Masthead } from './ui/Masthead';
+import { PhaseRail } from './ui/PhaseRail';
+import { RefusalBanner } from './ui/RefusalBanner';
+import { DoublePrompt } from './ui/DoublePrompt';
+import { ManifestSection, Mark } from './ui/Manifest';
+import { Docket, ToolHandStrip } from './ui/Docket';
 import { ExhibitList } from './ui/ExhibitList';
 import { VerdictPanel } from './ui/VerdictPanel';
 import { ConfirmBar } from './ui/ConfirmBar';
+import { AgentCard, deriveAgentState, type AgentCardState } from './ui/AgentCard';
+import { Setup } from './ui/Setup';
+import { Beliefs } from './ui/Beliefs';
+import { modelConfigDeliveries, type AgentConfigs } from './model/agentConfig';
 
-const NEXT_PHASE: Partial<Record<Phase, Phase>> = { FILING: 'REVIEW', REVIEW: 'VERDICT' };
+/**
+ * "The record" section (Task 4, finish plan, brief 4c): a shared bordered
+ * grid cell around each of the three columns, matching the design's
+ * `tb-cols3` treatment (the-board.dc.html, lines 417-481) — one border-top +
+ * border-left on the grid itself, each cell adding its own border-right and
+ * border-bottom, so the whole grid reads as one ruled table regardless of
+ * which column is tallest. The heading and sub-line are copy-final.md,
+ * verbatim, per column.
+ */
+function RecordColumn({ heading, sub, children }: { heading: string; sub: string; children: ReactNode }) {
+  return (
+    <div style={{ minWidth: 0, borderRight: '2px solid var(--tb-rule)', borderBottom: '2px solid var(--tb-rule)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700 }}>{heading}</h3>
+        <span style={{ fontSize: 12.5, lineHeight: 1.4, color: 'var(--tb-ink-2)' }}>{sub}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * "Facts on the record" (design lines 436-459): no prior component rendered
+ * this at all. Built straight off `FactStore.all()` — real facts, never the
+ * design's fabricated `FACTS`.
+ *
+ * C3 fix, round 1: `f.status !== 'disputed'` used to collapse three states
+ * into two, so `unopposed` (nobody has contested it YET, not "agreed") drew
+ * a filled disc with `aria-label="agreed"`, and the status word was
+ * suppressed exactly for `unopposed` — the one status where saying so
+ * matters most. One side's unexamined claim then showed on the shared
+ * record as agreed, to both sides, on the page whose entire pitch is that
+ * neither side takes the other's word for anything.
+ *
+ * Three marks now, from copy-final.md's ruling: `conceded` is a filled disc
+ * ("agreed"), `unopposed` is a hollow ring ("not yet contested"), `disputed`
+ * is a hollow ring struck through ("contested"). The status word is
+ * rendered for all three, never suppressed.
+ *
+ * Fix round 2, I3: C3 said "add a test per status," but `FactsColumn` was a
+ * private, unexported function and the `fact-*` testids appeared in no test
+ * file — the render was right, nothing pinned it. Exported here so
+ * `App.test.tsx` (or a dedicated test file) can render it directly rather
+ * than driving the whole `<App/>` through a fake WebMCP registration just to
+ * reach three rows.
+ */
+const FACT_MARK: Record<Fact['status'], { variant: 'filled' | 'hollow' | 'struck'; ariaLabel: string; word: string }> = {
+  conceded: { variant: 'filled', ariaLabel: 'agreed', word: 'agreed' },
+  unopposed: { variant: 'hollow', ariaLabel: 'not yet contested', word: 'unopposed' },
+  disputed: { variant: 'struck', ariaLabel: 'contested', word: 'disputed' },
+};
+
+export function FactsColumn({ facts }: { facts: Fact[] }) {
+  if (facts.length === 0) {
+    return <p style={{ margin: 0, fontSize: 12, fontStyle: 'italic', color: 'var(--tb-ink-3)' }}>no facts filed yet</p>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {facts.map((f) => {
+        const mark = FACT_MARK[f.status];
+        return (
+          <div key={f.id} data-testid={`fact-${f.id}`} style={{ display: 'grid', gridTemplateColumns: '13px 1fr', gap: 10, padding: '8px 0', borderTop: '1px solid var(--tb-rule-3)' }}>
+            <div style={{ paddingTop: 3 }}>
+              <Mark granted={mark.variant === 'filled'} variant={mark.variant} label={mark.ariaLabel} />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <span style={{ fontSize: 12.5, lineHeight: 1.45 }}>{f.text}</span>
+              <span style={{ fontSize: 11, color: 'var(--tb-ink-3)' }}>
+                {ACTOR_LABEL[f.side]} — {mark.word}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Every store, the registry and the phase machine, built once per page load
@@ -163,8 +248,25 @@ export function App() {
 
   const engine = useEngine(mc, refresh);
 
-  const [prompt, setPrompt] = useState('');
   const iframeRefs = useRef<Partial<Record<Actor, HTMLIFrameElement | null>>>({});
+
+  /**
+   * Fix round 1, Critical 2: the masthead's clock used to read
+   * `engine.exhibits.all()` directly — the LIVE store, which keeps growing
+   * every time an agent calls `file_exhibit` (that tool stamps real
+   * wall-clock time; `tools/impl.ts`'s `now()` defaults to
+   * `new Date().toISOString()` and this file never overrides it). One filing
+   * on camera moved the masthead's clock from the fixture's own 09:00-09:20
+   * to a window that never existed, and it changed on every take — the exact
+   * thing CLAUDE.md sec. 0 forbids ("fixed timestamps in the scenario...the
+   * filmed run must be reproducible").
+   *
+   * `fixedExhibits` is captured ONCE, from `loadScenario`'s own return value,
+   * the instant the fixture finishes seeding — before any live tool call can
+   * possibly have happened — and never re-derived from the live store
+   * afterward. `Masthead` reads only this, never `engine.exhibits.all()`.
+   */
+  const [fixedExhibits, setFixedExhibits] = useState<Exhibit[]>([]);
 
   useEffect(() => {
     if (!status.available) return;
@@ -191,6 +293,14 @@ export function App() {
     // scope holding every store. Passing a function rather than a value is
     // deliberate: an agent must read the board as it is now, never a picture
     // of it taken at boot.
+    // Fix round 2, Minor: this used to be `void openObserver(...)` with no
+    // `.then`, and `refresh()` only ran after `loadScenario` resolved below
+    // — no ordering guarantee between the two async calls. On a page whose
+    // first take is filmed, that left a transient frame where the observer
+    // card could paint its empty state before this registration (or its
+    // refusal) had actually settled. Chaining `.then(refresh)` here means a
+    // re-render happens the instant THIS registration is known, not
+    // whenever some unrelated effect next happens to trigger one.
     void engine.registry.openObserver(() => ({
       phase: engine.phaseMachine.phase,
       agents: ACTORS.map((a) => {
@@ -205,9 +315,13 @@ export function App() {
       // Said in the data, not only in the UI, so an agent reading this cannot
       // conclude that some tool somewhere could sign the verdict.
       confirm: 'never registered to any agent, in any phase. A person presses it.'
-    }));
+    })).then(refresh);
 
-    void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then(() => {
+    void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then((seeded) => {
+      // The fixture's own return value, not `engine.exhibits.all()` — see
+      // `fixedExhibits`'s own comment above. This is the ONLY place it is
+      // ever set.
+      setFixedExhibits(seeded.exhibits);
       refresh();
       // Panels mount with the iframes, so give them a beat to install their
       // message listener before the ids arrive.
@@ -239,6 +353,28 @@ export function App() {
     [tick]
   );
 
+  // Fix round 1, I2(b): `observerManifest()` already existed and nothing
+  // rendered it — `read_board` is a registered capability that appeared in
+  // no manifest anywhere. Recomputed on every `tick` for the same reason
+  // `manifests` is: the visiting agent's own comment says it must read the
+  // board as it is now, never a snapshot from boot.
+  const observerManifest = useMemo(
+    () => engine.registry.observerManifest(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tick]
+  );
+
+  // Fix round 2, C1: `observerFailures` was written by `ToolRegistry` and
+  // read nowhere — the visiting agent's card could show its "granted" text
+  // and its "empty" text at once, with no way to tell that the empty state
+  // was actually a browser REFUSAL of the no-`exposedTo` registration.
+  // Recomputed on `tick` for the same reason `observerManifest` is.
+  const observerFailures = useMemo(
+    () => engine.registry.observerRegistrationFailures(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tick]
+  );
+
   // Final review, Should-fix 6: a `registerTool` the browser refuses (a
   // Permissions-Policy that does not name the origin returns NotAllowedError)
   // must never be able to pass for a working boundary. `ToolRegistry` no
@@ -265,6 +401,39 @@ export function App() {
     }),
     [manifests]
   );
+
+  /**
+   * Task 2a: `AgentCard`'s state chip, one per actor. `deriveAgentState`
+   * (ui/AgentCard.tsx) is pure and DOM-free; this is the one place that
+   * feeds it real data — how many tools this actor currently holds (from
+   * the same `manifests` the manifest grid renders, so the two can never
+   * disagree) and every ledger entry recorded under that actor's own
+   * origin.
+   *
+   * Fix round 1, M9: this used to depend on `[manifests, tick]`. Redundant
+   * — `manifests` (above) already carries its own `[tick]` dependency and
+   * is a NEW object reference every tick (each `Row.used` count is read
+   * from the ledger's own call counts, so a ledger entry landing changes
+   * `manifests` too), so `[manifests]` alone already recomputes this on
+   * every tick that could matter; the second dependency named the same
+   * event twice.
+   */
+  const agentState = useMemo(() => {
+    const entries = engine.ledger.all();
+    return Object.fromEntries(
+      ACTORS.map((actor) => {
+        const origin = ORIGIN[actor];
+        // `failure`, not just `ok`, now rides along — see LedgerEntry's own
+        // comment (webmcp/ledger.ts) and deriveAgentState's (AgentCard.tsx):
+        // without it, a crash on the filmed run would read as this
+        // project's own central claim, "refused," about an event that
+        // never happened.
+        const forActor = entries.filter((e) => e.origin === origin).map((e) => ({ ok: e.ok, failure: e.failure }));
+        return [actor, deriveAgentState(manifests[actor].granted.length, forActor)];
+      })
+    ) as Record<Actor, AgentCardState>;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manifests]);
 
   const bytesOf = useCallback((id: string) => engine.exhibits.bytesOf(id), [engine.exhibits]);
 
@@ -303,8 +472,11 @@ export function App() {
     }
   }
 
-  function broadcastPrompt() {
-    const goal = prompt.trim();
+  /**
+   * `DoublePrompt` owns the input's own text state now (it used to be
+   * `prompt`/`setPrompt` here); this receives the already-trimmed goal.
+   */
+  function broadcastPrompt(goal: string) {
     if (!goal) return;
     const demo = demoContext();
     // Storyboard component 2, "the double prompt": the SAME text, into BOTH
@@ -314,6 +486,29 @@ export function App() {
     const sentAt = Date.now();
     for (const actor of ['A', 'B'] as const) {
       iframeRefs.current[actor]?.contentWindow?.postMessage({ type: 'board:prompt', goal, sentAt, demo }, ORIGIN[actor]);
+    }
+  }
+
+  /**
+   * Task 2a, Part 3 (delivery): `Setup`'s Save button calls this with the
+   * hazard-gated configs it built (an actor with no key is simply absent —
+   * see `agentConfig.ts`'s `buildActorConfig`) and the shared room code.
+   * Same pattern as `broadcastDemo`/`broadcastPrompt` above: one
+   * `postMessage` per frame, each with THAT frame's own `ORIGIN[actor]` as
+   * `targetOrigin` — never `'*'`.
+   *
+   * Fix round 1, I11: the loop that decides `targetOrigin` used to live
+   * inline here, where nothing could assert it without mocking a real
+   * `HTMLIFrameElement`'s `contentWindow`. `modelConfigDeliveries`
+   * (`model/agentConfig.ts`) now OWNS that decision as a pure, DOM-free
+   * function — this just iterates its return value and calls
+   * `postMessage`. A regression that changed the delivery plan to a
+   * wildcard or a shared broadcast now breaks a test in that file, not
+   * only in a browser nobody happened to check.
+   */
+  function broadcastModelConfig(configs: AgentConfigs, roomCode: string) {
+    for (const delivery of modelConfigDeliveries(ACTORS, configs, roomCode, ORIGIN)) {
+      iframeRefs.current[delivery.actor]?.contentWindow?.postMessage(delivery.message, delivery.targetOrigin);
     }
   }
 
@@ -328,104 +523,151 @@ export function App() {
   }
 
   return (
-    <div data-tick={tick} className="min-h-screen bg-neutral-950 text-neutral-200 font-mono">
-      <header className="flex items-center justify-between px-4 py-3 border-b border-neutral-800">
-        <h1 className="text-sm uppercase tracking-[0.3em] text-neutral-400">The Board</h1>
-        <div className="flex items-center gap-2 text-xs">
-          {(['FILING', 'REVIEW', 'VERDICT', 'CONFIRMED'] as const).map((p) => (
-            <span key={p} className={p === engine.phaseMachine.phase ? 'text-neutral-100' : 'text-neutral-700'}>
-              {p}
-            </span>
-          ))}
-          {NEXT_PHASE[engine.phaseMachine.phase] && (
-            <button
-              data-testid="advance-phase"
-              onClick={advancePhase}
-              className="ml-3 border border-neutral-700 rounded px-2 py-1 text-neutral-300 hover:bg-neutral-900"
-            >
-              advance → {NEXT_PHASE[engine.phaseMachine.phase]}
-            </button>
-          )}
-        </div>
+    <div data-tick={tick} className="min-h-screen font-mono" style={{ background: 'var(--tb-ground)', color: 'var(--tb-ink)' }}>
+      {/*
+        Fix round 1, I4: this used to be four bare siblings with no
+        landmark, so the <h1> and the refusal banner sat outside any region
+        a screen reader's landmark navigation would stop at. <header> is the
+        semantically correct wrapper for exactly this content (site identity
+        + primary status), and adds no visual change — `<header>` carries no
+        default browser margin/display to override.
+      */}
+      <header>
+        <Masthead fixedExhibits={fixedExhibits} />
+        <PhaseRail phase={engine.phaseMachine.phase} onAdvance={advancePhase} />
+        <RefusalBanner failures={registrationFailures} />
+        <DoublePrompt onSend={broadcastPrompt} />
       </header>
 
-      <main className="p-4 flex flex-col gap-4">
-        {registrationFailures.length > 0 && (
-          <section
-            data-testid="registration-failures"
-            className="border border-amber-500 bg-amber-950/30 rounded-md p-3 text-sm text-amber-100"
-          >
-            <h2 className="uppercase tracking-widest text-xs text-amber-300 font-semibold mb-1">
-              the browser refused {registrationFailures.length} registration{registrationFailures.length === 1 ? '' : 's'}
-            </h2>
-            <p className="text-xs text-amber-200/80 mb-2">
-              These tools were asked for and not granted. They are absent from every manifest below, so a
-              GRANTED column that omits one is showing this failure, not a withheld capability.
-            </p>
-            <ul className="flex flex-col gap-0.5 text-xs font-mono">
-              {registrationFailures.map((f) => (
-                <li key={`${f.lifetime}:${f.origin}:${f.tool}`} data-testid={`registration-failure-${f.tool}`}>
-                  {f.tool} · {f.origin} · {f.lifetime} · {f.reason}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+      {/*
+        Task 2a, Part 2: the setup form, above the manifests per its own
+        brief ("2b. Setup.tsx — on the record page, above the manifests").
+        `onSave` is this file's own `broadcastModelConfig` (Part 3) — Setup
+        never touches `postMessage` or `ORIGIN` itself; it only decides WHAT
+        to send.
+      */}
+      <Setup onSave={broadcastModelConfig} />
 
-        <section className="flex gap-2">
-          <input
-            data-testid="double-prompt-input"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') broadcastPrompt(); }}
-            placeholder="one instruction, into both advocate panels at once"
-            className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-3 py-2 text-sm placeholder:text-neutral-600"
+      <ManifestSection manifests={manifests} phase={engine.phaseMachine.phase} observer={observerManifest} observerFailures={observerFailures} />
+
+      {/*
+        Fix round 1, I5: the tool-hand strip used to sit inside "Record of
+        steps", where the first thing under "every call any agent made, in
+        order, with what came back" was four cards of what each agent
+        currently HOLDS — not calls, not in order, not what came back, and a
+        duplicate of the manifest grid three sections up. It belongs here
+        instead: the manifest is the full catalogue, this is what is held
+        right now.
+
+        Fix round 2, I1: moving it here left it unlabelled — four cards
+        repeating the four actor names from the manifest grid directly
+        above, with nothing on the page saying why. Heading and sub-line
+        below are copy-final.md, verbatim, and say exactly what I5's own
+        justification said in the code comment but nowhere on screen.
+      */}
+      {/*
+        The heading gets its own horizontal inset here — `ToolHandStrip`
+        (Docket.tsx, not this task's file this round) already carries its
+        own `clamp(16px,2.6vw,40px)` padding on its grid, so nesting it
+        inside a second padded wrapper would double that inset instead of
+        matching it, the exact "horizontal rhythm splits" bug fix round 1
+        closed elsewhere on this page.
+      */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, padding: '0 clamp(16px,2.6vw,40px) 12px' }}>
+        <h2 style={{ margin: 0, fontFamily: 'var(--font-heading, Archivo), sans-serif', fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em' }}>
+          What each agent is holding right now
+        </h2>
+        <span style={{ fontSize: 12.5, lineHeight: 1.4, color: 'var(--tb-ink-2)' }}>
+          The manifest above is the whole catalogue. This is what is in each agent&rsquo;s hands at this moment, and
+          it changes as phases open and close.
+        </span>
+      </div>
+      <ToolHandStrip
+        phase={engine.phaseMachine.phase}
+        manifests={manifests}
+        appeal={{ held: (s) => engine.phaseMachine.appealHeld(s), spent: (s) => engine.phaseMachine.appealSpent(s) }}
+      />
+
+      {/*
+        The four panel frames. Task 2a ports the design's "Four agents, four
+        frames" chrome around them (the-board.dc.html, lines 266-388) via
+        `AgentCard`: the 4px hue bar, the name, a state chip, the role line
+        and — the one that matters — `frame {origin}` in mono, printing the
+        claim "each one on its own web address" instead of leaving it
+        unstated. Ruling 7 (controller, finish plan) still holds: the
+        design's panel is `min-height:440px`, so `AgentCard` fixes its own
+        card at that height regardless of which task restyles what sits
+        inside it.
+      */}
+      <section className="grid grid-cols-1 lg:grid-cols-4 gap-3" style={{ padding: '16px clamp(16px,2.6vw,40px)' }}>
+        {ACTORS.map((actor) => (
+          <AgentCard key={actor} actor={actor} state={agentState[actor]}>
+            <iframe
+              ref={(el) => { iframeRefs.current[actor] = el; }}
+              data-testid={`frame-${actor}`}
+              src={`${ORIGIN[actor]}/?actor=${actor}${roomCodeParam()}`}
+              allow="tools"
+              title={`${ACTOR_LABEL[actor]} panel`}
+              style={{ flex: 1, minWidth: 0, width: '100%', border: 'none' }}
+            />
+          </AgentCard>
+        ))}
+      </section>
+
+      {/*
+        Fix round 1, Minor: horizontal rhythm used to split three ways
+        (`clamp(16px,2.6vw,40px)` in `ManifestSection`/`ConfirmBar`, `p-4` —
+        a flat 16px — here and on the iframe section above, and `ConfirmBar`
+        sitting inside THIS element's own `p-4` on top of its own clamp
+        padding, compounding to 56px of left indent). `<main>` now owns no
+        horizontal padding at all; every section below owns its own
+        `clamp(16px,2.6vw,40px)` inset, the same value used everywhere else
+        on the page.
+      */}
+      <main style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 0' }}>
+        <div style={{ padding: '0 clamp(16px,2.6vw,40px)' }}>
+          <h2 style={{ margin: '0 0 16px', fontFamily: 'var(--font-heading, Archivo), sans-serif', fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em' }}>
+            The record
+          </h2>
+          <div className="tb-cols3" style={{ display: 'grid', borderTop: '2px solid var(--tb-rule)', borderLeft: '2px solid var(--tb-rule)' }}>
+            <RecordColumn heading="Exhibits" sub="The papers both sides argue from. Each has an id both halves quote.">
+              <ExhibitList exhibits={engine.exhibits.all()} assessments={engine.assessments.all()} bytesOf={bytesOf} />
+            </RecordColumn>
+            <RecordColumn heading="Facts on the record" sub="Filed with file_fact. A filled disc is agreed, a hollow ring is not yet contested, a struck ring is disputed.">
+              <FactsColumn facts={engine.facts.all()} />
+            </RecordColumn>
+            <RecordColumn heading="Record of steps" sub="Every call any agent made, in order, with what came back.">
+              <Docket entries={engine.ledger.all()} />
+            </RecordColumn>
+          </div>
+        </div>
+
+        <div style={{ padding: '0 clamp(16px,2.6vw,40px)' }}>
+          <VerdictPanel
+            seat1={engine.verdicts.bySeat('seat1')}
+            seat2={engine.verdicts.bySeat('seat2')}
+            facts={engine.facts.all()}
+            exhibits={engine.exhibits.all()}
+            assessments={engine.assessments.all()}
+            ledger={engine.ledger}
+            grantedTools={grantedTools}
           />
-          <button
-            data-testid="double-prompt-send"
-            onClick={broadcastPrompt}
-            className="border border-neutral-600 rounded px-4 text-sm hover:bg-neutral-900"
-          >
-            send to A + B
-          </button>
-        </section>
+        </div>
 
-        <section className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-          {ACTORS.map((actor) => (
-            <div key={actor} className="flex flex-col gap-2">
-              <Manifest manifest={manifests[actor]} />
-              <iframe
-                ref={(el) => { iframeRefs.current[actor] = el; }}
-                data-testid={`frame-${actor}`}
-                src={`${ORIGIN[actor]}/?actor=${actor}${roomCodeParam()}`}
-                allow="tools"
-                title={`${ACTOR_LABEL[actor]} panel`}
-                className={`h-64 rounded border ${ACTOR_ACCENT[actor].border} bg-black`}
-              />
-            </div>
-          ))}
-        </section>
-
-        <Docket
-          phase={engine.phaseMachine.phase}
+        <ConfirmBar
+          outcome={engine.caseOutcome}
           manifests={manifests}
-          appeal={{ held: (s) => engine.phaseMachine.appealHeld(s), spent: (s) => engine.phaseMachine.appealSpent(s) }}
-          entries={engine.ledger.all()}
+          onChange={() => { refresh(); if (engine.caseOutcome.state === 'confirmed') void engine.phaseMachine.enter('CONFIRMED').then(refresh); }}
         />
 
-        <ExhibitList exhibits={engine.exhibits.all()} assessments={engine.assessments.all()} bytesOf={bytesOf} />
-
-        <VerdictPanel
-          seat1={engine.verdicts.bySeat('seat1')}
-          seat2={engine.verdicts.bySeat('seat2')}
-          facts={engine.facts.all()}
-          exhibits={engine.exhibits.all()}
-          assessments={engine.assessments.all()}
-          ledger={engine.ledger}
-          grantedTools={grantedTools}
-        />
-
-        <ConfirmBar outcome={engine.caseOutcome} onChange={() => { refresh(); if (engine.caseOutcome.state === 'confirmed') void engine.phaseMachine.enter('CONFIRMED').then(refresh); }} />
+        {/*
+          Task 6 (finish plan): the block this page has never had — a
+          sentence saying what it is, after a viewer has already seen the
+          record, the verdict and the confirm control it is a sentence
+          about. Deliberately last: the masthead standfirst opens the
+          argument, this closes it.
+        */}
+        <Beliefs />
       </main>
     </div>
   );
