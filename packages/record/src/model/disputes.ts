@@ -41,8 +41,9 @@ export class DisputeStore {
     // stores, not two spellings of the same refusal. Kept byte-identical
     // deliberately, including the recovery clause: neither actor set that can
     // reach this guard (A/B here, seat1/seat2 in AssessmentStore) holds a tool
-    // that reads exhibit ids back (search_exhibits is boardRead-only, and
-    // read_board belongs to the observer, not either actor) — so the clause
+    // that reads exhibit ids back (search_exhibits is boardRead-only; A/B do
+    // hold read_board, but the seats that reach AssessmentStore's copy of this
+    // guard do not, and the two clauses stay byte-identical) — so the clause
     // says where a real id comes from, not a tool name.
     if (!exhibit) throw new Refusal(`no such exhibit: ${input.exhibitId}; use an exhibit id that was actually filed`);
 

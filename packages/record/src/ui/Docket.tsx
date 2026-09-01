@@ -120,7 +120,7 @@ export function Docket({ entries }: DocketProps) {
  * UTC, and a viewer would read it as local time and be wrong by their own
  * offset).
  */
-function shortTime(atMs: number): string {
+export function shortTime(atMs: number): string {
   return `${new Date(atMs).toISOString().slice(11, 19)}Z`;
 }
 

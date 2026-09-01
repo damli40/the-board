@@ -47,8 +47,10 @@ export class FactStore {
     // path into this guard (the `concede` tool; `attachDispute` reached via
     // the `dispute` tool) is A/B in `filing`, the same actor set that holds
     // file_fact — so naming it would not be wrong the way the exhibit
-    // guards' cross-lifetime sharing makes read_board/search_exhibits
-    // wrong there. Left conservative anyway: this is a PRIVATE method any
+    // guards' cross-lifetime sharing makes search_exhibits wrong there
+    // (search_exhibits is boardRead-only; A/B do hold read_board, but the
+    // seats that reach AssessmentStore's copy of that guard do not, and the
+    // two clauses stay byte-identical). Left conservative anyway: this is a PRIVATE method any
     // future FactStore caller can reach, and under-claiming a recovery
     // clause is safe where a wrong one is not (this task's own brief).
     if (!f) throw new Refusal(`no such fact: ${id}; use a fact id that was actually filed`);

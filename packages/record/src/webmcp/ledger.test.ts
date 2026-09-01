@@ -10,6 +10,7 @@ import { Receipts, AssessmentStore } from '../model/receipts';
 import { DisputeStore } from '../model/disputes';
 import { VerdictStore } from '../model/verdict';
 import { createToolImpl } from '../tools/impl';
+import { ObjectionStore } from '../model/objections';
 import type { PhaseMachine } from './phases';
 
 describe('Ledger', () => {
@@ -325,6 +326,8 @@ describe('Ledger', () => {
       const phaseMachine = { spendAppeal: () => {}, enter: async () => {} } as unknown as PhaseMachine;
       const impl = createToolImpl({
         exhibits, facts, receipts, assessments, disputes, verdicts,
+        objections: new ObjectionStore(),
+        readBoard: () => ({ phase: 'FILING', agents: [], ledger: [] }),
         getPhaseMachine: () => phaseMachine
       });
 

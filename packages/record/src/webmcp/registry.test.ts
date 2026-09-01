@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ToolRegistry } from './registry';
+import { PhaseMachine } from './phases';
 import { Ledger } from './ledger';
 import { FakeModelContext } from './fakeModelContext';
 import { NEVER_GRANTED, OBSERVER_LABEL, OBSERVER_ORIGIN, TOOLS, LIFETIME_WINDOW, PHASE_ORDER, bareToolName, registeredToolName, type Lifetime } from './tools';
 import type { Phase } from '../model/types';
 
-const LIFETIMES: Lifetime[] = ['filing', 'partyObject', 'boardRead', 'verdictDraft', 'appealA', 'appealB'];
+const LIFETIMES: Lifetime[] = ['filing', 'partyRead', 'partyObject', 'boardRead', 'verdictDraft', 'appealA', 'appealB'];
 import { ORIGIN } from '../config/origins';
 
 describe('ToolRegistry', () => {
@@ -62,7 +63,7 @@ describe('ToolRegistry', () => {
   it('projects a manifest whose granted half comes from the registry itself', async () => {
     await registry.open('boardRead');
     const m = registry.manifest('seat2');
-    expect(m.granted.map((g) => g.tool).sort()).toEqual(['extract_text', 'open_exhibit', 'record_assessment', 'search_exhibits']);
+    expect(m.granted.map((g) => g.tool).sort()).toEqual(['extract_text', 'open_exhibit', 'read_board', 'record_assessment', 'search_exhibits']);
     expect(m.granted.find((g) => g.tool === 'extract_text')!.lends).toBe(true);
   });
 
@@ -81,7 +82,7 @@ describe('ToolRegistry', () => {
   });
 
   it('never grants confirm to anyone, in any lifetime', async () => {
-    for (const lifetime of ['filing', 'partyObject', 'boardRead', 'verdictDraft', 'appealA', 'appealB'] as const) {
+    for (const lifetime of LIFETIMES) {
       await registry.open(lifetime);
     }
     for (const origin of [ORIGIN.A, ORIGIN.B, ORIGIN.seat1, ORIGIN.seat2]) {
@@ -129,7 +130,7 @@ describe('ToolRegistry', () => {
       expect(granted).not.toContain('extract_text');
       // The tools registered alongside it are unaffected: one refusal must
       // not silently strip everything declared after it either.
-      expect(granted.sort()).toEqual(['open_exhibit', 'record_assessment', 'search_exhibits']);
+      expect(granted.sort()).toEqual(['open_exhibit', 'read_board', 'record_assessment', 'search_exhibits']);
     });
 
     it('is reported, not swallowed, so a missing row cannot pass for a withheld capability', async () => {
@@ -190,7 +191,7 @@ describe('ToolRegistry', () => {
 
     it('gives BOTH seats all their reading capabilities', async () => {
       await registry.open('boardRead');
-      const expected = ['extract_text', 'open_exhibit', 'record_assessment', 'search_exhibits'];
+      const expected = ['extract_text', 'open_exhibit', 'read_board', 'record_assessment', 'search_exhibits'];
       expect(mc.capabilitiesVisibleTo(ORIGIN.seat1).sort()).toEqual(expected);
       expect(mc.capabilitiesVisibleTo(ORIGIN.seat2).sort()).toEqual(expected);
     });
@@ -367,6 +368,70 @@ describe('ToolRegistry', () => {
     });
   });
 
+  /**
+   * Task 4: `read_board` now exists TWICE — once as the observer's unscoped
+   * registration, once as a party-scoped spec under the `partyRead` lifetime.
+   * They are separate registrations under separate names, and this is what
+   * proves it: the party's is withdrawn when the case closes, the observer's
+   * is not. `mc.tools` keeps a row for every registration ever made and only
+   * flips `live` when the signal aborts, so every assertion here reads the
+   * LIVE set — the withdrawn row is still in the array.
+   */
+  it('partyRead hands read_board to A and B from FILING through VERDICT and withdraws it at CONFIRMED', async () => {
+    const phases = new PhaseMachine(registry);
+    await registry.openObserver(() => ({}));
+    const live = () => mc.tools.filter((t) => t.live).map((t) => t.name);
+
+    await phases.enter('FILING');
+    expect(live()).toContain('a__read_board');
+    expect(live()).toContain('b__read_board');
+    await phases.enter('REVIEW');
+    await phases.enter('VERDICT');
+    expect(live()).toContain('a__read_board');
+    await phases.enter('CONFIRMED');
+    expect(live()).not.toContain('a__read_board');
+    expect(live()).not.toContain('b__read_board');
+    expect(live()).toContain('read_board'); // the observer keeps its own
+  });
+
+  /**
+   * The seats' own read, under `boardRead` — which is the seats' reading
+   * window, REVIEW through VERDICT, and not a phase longer. They are the
+   * readers asked to assess the parties' facts, and `record_assessment`
+   * takes a `factId` that nothing else in a seat's hand returns; without
+   * this a seat has to infer the fact ids from the exhibits and hope. They
+   * still do not read during FILING: the parties are mid-filing, and the
+   * seats' whole hand arrives at REVIEW together.
+   */
+  it('boardRead hands read_board to both seats in REVIEW and VERDICT, and never in FILING', async () => {
+    const phases = new PhaseMachine(registry);
+    await registry.openObserver(() => ({}));
+    const live = () => mc.tools.filter((t) => t.live).map((t) => t.name);
+    const SEAT_READS = ['seat1__read_board', 'seat2__read_board'];
+
+    await phases.enter('FILING');
+    for (const n of SEAT_READS) expect(live(), `${n} was live during FILING`).not.toContain(n);
+    // The parties' read is live in FILING, so an empty seat read here is the
+    // lifetime doing its job and not the registration having failed.
+    expect(live()).toContain('a__read_board');
+    expect(live()).toContain('b__read_board');
+    expect(live()).toContain('read_board');
+
+    await phases.enter('REVIEW');
+    for (const n of SEAT_READS) expect(live()).toContain(n);
+    expect(live()).toContain('read_board');
+
+    await phases.enter('VERDICT');
+    for (const n of SEAT_READS) expect(live()).toContain(n);
+    expect(live()).toContain('read_board');
+
+    await phases.enter('CONFIRMED');
+    for (const n of SEAT_READS) expect(live()).not.toContain(n);
+    // The observer's unprefixed registration outlives all four phases; it is
+    // the one read that never depended on a lifetime.
+    expect(live()).toContain('read_board');
+  });
+
   describe('the visiting agent', () => {
     // An agent driving this page from outside — Chrome's built-in one, or me —
     // is not one of the four panel origins, so `exposedTo` hands it nothing.
@@ -415,8 +480,27 @@ describe('ToolRegistry', () => {
     it('is invisible to all four panels, which is what keeps the partition true', async () => {
       await registry.openObserver(() => ({}));
       for (const lifetime of LIFETIMES) await registry.open(lifetime);
+      // Task 4 put a SECOND `read_board` in the catalogue, scoped to A and B,
+      // so the bare capability name is no longer the right thing to look for
+      // — A legitimately holds a read of its own. What must stay unreachable
+      // is the OBSERVER'S registration, and that one is identified by its
+      // REGISTERED name: it is the only tool on the page registered without
+      // an actor prefix, because it is the only one registered without an
+      // origin scope. `visibleTo` returns registered names; `read_board`
+      // appearing there for a panel would mean the unscoped grant leaked.
       for (const actor of ['A', 'B', 'seat1', 'seat2'] as const) {
-        expect(mc.capabilitiesVisibleTo(ORIGIN[actor])).not.toContain('read_board');
+        expect(mc.visibleTo(ORIGIN[actor])).not.toContain('read_board');
+      }
+      // CHANGED: the seats used to hold no read of any kind, and this
+      // asserted the BARE capability name was absent for them. They hold a
+      // scoped read now, so that assertion would only re-state the loop
+      // above. What must stay true is stronger and is asserted instead: each
+      // seat reaches its OWN registration and nobody else's — never the
+      // observer's unprefixed one, never the other seat's, never a party's.
+      for (const seat of ['seat1', 'seat2'] as const) {
+        expect(mc.capabilitiesVisibleTo(ORIGIN[seat])).toContain('read_board');
+        expect(mc.visibleTo(ORIGIN[seat]).filter((n) => bareToolName(n) === 'read_board'))
+          .toEqual([`${seat}__read_board`]);
       }
     });
 

@@ -109,6 +109,15 @@ export class VerdictStore {
   bySeat(seat: Seat): Verdict | undefined {
     return this.drafts.get(seat);
   }
+
+  /**
+   * Every draft filed so far, in the order the seats filed them. A copy, like
+   * every other store's `all()` — a caller that mutates what it is handed
+   * must not be able to edit the record from the outside.
+   */
+  all(): Verdict[] {
+    return [...this.drafts.values()];
+  }
 }
 
 export interface Split {

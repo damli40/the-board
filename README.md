@@ -36,6 +36,11 @@ Both are stated in full under [Limitations](#limitations), below.
 
 Built for the WebMCP hackathon, 2026.
 
+**Judging this?** Jump to
+[How a judge runs this](#how-a-judge-runs-this-path-c-be-advocate-a-with-your-own-claude-code-or-codex).
+If you have Claude Code or Codex, you can argue a side of the case yourself, on the live sites,
+with no key and no room code. Both were driven live against the deployed record.
+
 > **Requires Chrome 149 or later, with WebMCP turned on.** WebMCP (the browser API that lets a page
 > declare tools an AI agent can call, and decide per origin who gets to call them) ships behind a
 > flag today. Enable it at `chrome://flags/#enable-webmcp-testing`, or run this project under an
@@ -145,6 +150,11 @@ open the record URL from the submission (it carries the room code) and drive it,
 [Deploy it yourself](#deploy-it-yourself) recreates it, and the local route in the next section
 shows exactly the same thing.
 
+If you have Claude Code or Codex, there is a better door than watching:
+[How a judge runs this](#how-a-judge-runs-this-path-c-be-advocate-a-with-your-own-claude-code-or-codex)
+puts you in the case as
+Advocate A, with your own agent, on these same live sites. It needs no key and no room code.
+
 | origin | role |
 |---|---|
 | [`theboard-record.netlify.app`](https://theboard-record.netlify.app) | the docket, the tool registry, the phase machine |
@@ -231,7 +241,324 @@ variable — see `.env.example` for the full list this project's dev server read
 pretends to be a demo: a misconfigured real deploy should fail loudly, not fake success. You'll see a
 `Something broke` line carrying the real error underneath instead.
 
-### Driving the demo
+### How a judge runs this (Path C): be Advocate A with your own Claude Code or Codex
+
+**This is the runbook for a judge.** No key, no room code, no account on this project. You bring the
+coding agent you already have, you sit in one of the four origins as Advocate A, and you argue a side
+in a case. Everything your agent can do there is what the browser handed that origin, and nothing
+else.
+
+The thing you are meant to feel: when the phase moves, your own agent's hands change under it, and
+you did not do that and it cannot undo it. It finds out, mid-session, that a tool it was using an
+hour ago is gone.
+
+`packages/external-agent` is what makes that possible. It is a small local server that speaks MCP to
+your coding agent on one side and CDP to a browser tab on the other. CDP is the Chrome DevTools
+Protocol, the debugging channel a program uses to run code inside a tab. The bridge runs
+`getTools({ fromOrigins })` and `executeTool()` inside one panel frame and hands your agent back
+exactly what that origin holds right now. It never writes to the record directly, and it takes no
+`actor` argument from the model, so identity comes from the origin the call ran in, not from
+anything the model said about itself.
+
+It is a raw CDP client on purpose. On Chrome 152, Playwright's `connectOverCDP` reports cross-origin
+iframes with empty URLs, so the actor's frame can never be found that way. Two other Chrome details
+the bridge absorbs for you: Chrome hands `inputSchema` over as a JSON string, which the bridge parses
+per tool, and Chrome replaces a rejected tool call's message with a generic error, so the record
+returns its refusals as data instead (`{"ok":true,"result":…}` or `{"refused":true,"reason":…}`). The
+bridge unwraps that once. A refusal reaches your agent as a tool error reading `refused: …`, verified
+in Claude Code on 1 Sep 2026.
+
+#### What you need
+
+- **macOS.** `scripts/agents/chrome.sh` looks for Chrome at the macOS bundle path
+  (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`). Everything else here is
+  platform-neutral, so on Linux or Windows set `BOARD_CHROME_BIN` to your own Chrome binary and the
+  rest of the runbook is unchanged.
+- **Node 22 or later.** Check with `node -v`. The bridge uses Node's global `WebSocket`, which
+  arrived in 22.
+- **Chrome 149 or later.** Everything below was run on Chrome 152 on 1 Sep 2026.
+- **Claude Code, or Codex.** Nothing else. No provider key, no room code. Both have been driven
+  live against the deployed record. Register Codex with `codex mcp add`, per step 3, and expect it to
+  ask you to approve each call that changes the record.
+
+Every variable these scripts read, all optional:
+
+| Variable | What it does |
+|---|---|
+| `BOARD_CHROME_BIN` | Path to the Chrome binary. Defaults to the macOS bundle path above, so set it on any other platform. |
+| `BOARD_ROOM_CODE` | Appends `?code=…` to the record URL. You do not need one: the bridge never touches the model proxy. |
+| `BOARD_AGENT` | `claude` (default) or `codex`. Picks which coding agent the scripts drive. |
+| `BOARD_AGENT_MODEL` | Model id passed through to that agent. Use it if your account's default model refuses a prompt. |
+| `BOARD_DRY_RUN` | Set to `1` to print the command a script would run, and run nothing. |
+
+#### 1. Install
+
+```bash
+npm install
+```
+
+#### 2. Open the bench Chrome
+
+```bash
+scripts/agents/chrome.sh
+```
+
+That opens a throwaway Chrome profile at `~/.the-board/agent-chrome`, turns WebMCP on with
+`--enable-features=WebMCP,DevToolsWebMCPSupport` (what `chrome://flags/#enable-webmcp-testing`
+expands to on Chrome 152), loads the deployed record page, and listens for a debugger on
+`127.0.0.1:9222`. Chrome refuses a debugging port on your normal profile, which is why the script
+makes its own. If a later Chrome renames those features, seed that profile's `Local State` file with
+`["enable-webmcp-testing@1"]` instead; the script carries the exact line in a comment.
+
+Treat that port as privileged local access, and close the window when you are done. The script says
+the same thing on launch, and it is worth reading twice: that window is a throwaway profile with a
+debugging port open on localhost, so do not sign in to it and do not install extensions in it. If
+you reach for Chrome from the Dock while it is running, this is the window you will get.
+
+The script adds `?code=$BOARD_ROOM_CODE` to the URL only if you set that variable. You do not need
+one: the bridge never touches this project's model proxy, so nothing here spends anybody's key. Set
+it only if you want to land straight in a specific room, and never write a real code into a file.
+Locally the dev server accepts `board-demo-2026`.
+
+Leave that window open. Everything below drives it.
+
+#### 3. Be Advocate A
+
+```bash
+scripts/agents/agent.sh A
+```
+
+That starts an ordinary interactive Claude Code session that holds only The Board's tools. It runs
+from a temporary folder with `--tools ""`, so no project instructions and no file, shell or web tools
+come along with it, and it unsets `ANTHROPIC_API_KEY` first so the session runs on your own Claude
+Code sign-in.
+
+If you would rather have the server in a session you started yourself, register it by hand instead.
+Replace the checkout path with wherever this repo lives on your machine:
+
+```bash
+claude mcp add --scope local the-board-a -- \
+  node /absolute/path/to/the-board/packages/external-agent/src/cli.mjs \
+  --actor A \
+  --record-url https://theboard-record.netlify.app \
+  --panel-url https://theboard-a.netlify.app \
+  --cdp http://127.0.0.1:9222
+```
+
+```bash
+codex mcp add the-board-a -- \
+  node /absolute/path/to/the-board/packages/external-agent/src/cli.mjs \
+  --actor A \
+  --record-url https://theboard-record.netlify.app \
+  --panel-url https://theboard-a.netlify.app \
+  --cdp http://127.0.0.1:9222
+```
+
+Start a fresh session after registering the server. Use `B` with `theboard-b`, `seat1` with
+`theboard-seat1`, or `seat2` with `theboard-seat2` for the other origins, and give each server its
+own name. For the local five-port setup, swap the two URLs for `http://localhost:8080` and
+`http://localhost:8081`.
+
+Being Advocate A in an interactive Codex session works. That form was run on 2 Sep 2026: Codex listed
+exactly Advocate A's six tools, read the live record, and showed a refusal word for word.
+
+Codex will stop and ask you to approve each call that changes the record. That is Codex's own approval
+policy, not the Board's. It lands as a second consent layer on top of the browser's: the browser
+decides what this origin may call at all, and then you decide whether this particular filing happens.
+If you would rather it stopped asking, add one line to that server's block in `~/.codex/config.toml`:
+
+```toml
+default_tools_approval_mode = "approve"
+```
+
+#### 4. What to say to your agent
+
+Three lines, in this order. Say them in your own words if you prefer.
+
+> "what do you hold right now?"
+
+It should name five filing tools plus `read_board`, and that list should match what the record page
+shows for Advocate A.
+
+> "File this as a text exhibit named Completion email: 'Sent the delivery summary to the recipient on
+> the day of completion. Subject: Delivery complete. No bounce, no reply.' Then file the fact it
+> supports: the delivery summary was emailed to the recipient on the day of completion."
+
+That is A's own filing sentence, out of [`cases/demo/a-side.md`](cases/demo/a-side.md), which also
+carries the rest of A's side if you want to argue more of it.
+
+> "any update?"
+
+It reads the board and tells you what the other side has done. It never sees exhibit text through
+that read, only the shape of the case, because opening a document is its own step and its own row on
+the record.
+
+#### 5. Let the other side answer
+
+```bash
+scripts/agents/b.sh
+```
+
+One shot as Advocate B: it reads the facts, then files an exhibit and a fact that counters yours.
+`BOARD_AGENT=codex scripts/agents/b.sh` aims the same one-shot at Codex instead. Either client works,
+for reading and for filing.
+
+The Codex path writes a throwaway config into a temporary `CODEX_HOME`, which is the form that exposes
+the bridge's tools, and copies your existing Codex sign-in into it. That config also carries the
+`default_tools_approval_mode` line above, so a one-shot can file without a person sitting there to
+answer a prompt. It covers the Board's own server, in that temporary config, for that one run. Your
+`~/.codex/config.toml` is never touched and Codex keeps its own sandbox.
+
+#### 6. Close filing, and watch your agent's hands change
+
+On the record page, click **"Open review."** Then ask your own session, without restarting it:
+
+> "what do you hold now?"
+
+On Claude Code 2.1.252 on 1 Sep 2026, the same session answered *"Tools I hold now: `read_board` and
+`object`. That's it."* The filing tools were gone. The browser withdrew them, the bridge noticed, and
+your agent's tool list was rewritten under it. If a future version of your client ignores that
+notice, `scripts/agents/agent.sh A --continue` picks the session back up with a fresh list.
+
+Now ask it to file something it no longer holds. It gets refused, in these words:
+`<tool> is not granted to this origin in the current phase`. The bridge re-checks the live browser
+list before every call, so a cached schema buys nothing.
+
+#### 7. The seats read the case
+
+```bash
+scripts/agents/seats.sh review
+```
+
+Both board seats run at once. They read the facts, open the exhibits those facts point at, and record
+an assessment on each contested one. A quote that is not really on the page it cites is refused, not
+warned about.
+
+#### 8. The seats draft
+
+Click **"Ask the seats to draft"** on the record page, then:
+
+```bash
+scripts/agents/seats.sh verdict
+```
+
+If your account's default model refuses this prompt, run it as
+`BOARD_AGENT_MODEL=opus scripts/agents/seats.sh verdict`. That variable picks the model for any of
+these scripts.
+
+#### 9. Ask A what to do with the appeal
+
+> "should we spend the appeal?"
+
+A reads the drafts and the assessments and gives you an answer with reasons. It is a recommendation.
+Spending the appeal is still your call, and A cannot do it for you.
+
+#### 10. A person ends it
+
+On the record page, scroll to **"The one control no agent can reach,"** type a name into **"named
+person,"** and press **`[ confirm ]`**. The phase rail labels this step *Hand to a person*; if you do
+not see that button, the confirm bar itself is reachable directly.
+
+`confirm` is not a tool. It was never registered to any origin, in any phase, so there is nothing for
+any agent to call. Ask A what it holds after this and it will tell you it holds nothing.
+
+#### What you just proved
+
+- **The list came from the browser, not from this app's promise.** At FILING, on the deployed sites,
+  Advocate A's frame lists `a__*` tools only, Advocate B's lists `b__*` only, and the two seats' frames
+  list nothing at all. Checked per frame over CDP on 1 Sep 2026.
+- **A tool's life ends when its phase does**, and an outside agent finds out mid-session without being
+  restarted.
+- **A withdrawn tool cannot be called from a stale list.** The refusal is the browser's answer, not a
+  policy this app remembered to apply.
+- **A read is not a document.** `read_board` returns the case's shape in pages, never exhibit text.
+  Opening a document is a separate, receipted step.
+- **At the end, every hand is empty.** After confirmation the four actors hold nothing, and only the
+  visiting observer's `read_board` is still registered.
+- **No origin ever held `confirm`.** A person pressed it.
+
+#### What the demo shows
+
+Two hats, and the demo is the seam between them.
+
+**Hat one: the person with the dispute.** That is one terminal window, talking to Advocate A's own
+agent in plain sentences. Tell it what happened. It files. Ask it what the other side did. It reads.
+Ask it whether to spend the appeal. It answers with reasons and leaves the decision with you.
+
+**Hat two: the clerk who runs the room.** Three clicks and a signature: "Open review," "Ask the seats
+to draft," then a name and `[ confirm ]`. No agent gets any of those. They are not tools, for anyone,
+in any phase.
+
+Everything else is other people's agents doing their own jobs: `b.sh` is the other side answering,
+`seats.sh review` and `seats.sh verdict` are the two board seats reading and drafting.
+
+The four panels on the record page barely move, and that is the design. The action is in three
+places: the record's own tape, the manifest column that says what each origin holds right now, and
+the terminal where an agent tells you what it can and cannot do. Watch the manifest when you click
+"Open review." Five tools leave two hands and four arrive in two others, in one instant, and nobody
+asked the agents to agree to it.
+
+#### When this does not work
+
+| What you see | What to do |
+|---|---|
+| `cannot reach Chrome's debugging port at … (ECONNREFUSED)` | The bench Chrome is not running. Run `scripts/agents/chrome.sh`. |
+| `exec: …/Google Chrome: No such file or directory` | `chrome.sh` looks for Chrome at the macOS bundle path. Set `BOARD_CHROME_BIN` to your own Chrome binary. |
+| Chrome opens with none of my extensions or profile | You are looking at the throwaway profile this script launched. Quit Chrome fully, then reopen it from the Dock. |
+| `user cancelled MCP tool call` (Codex) | Codex's own approval policy stopped a write, not a Board refusal. Approve the call when Codex asks, or add the `default_tools_approval_mode` line from step 3 to that server's block in `~/.codex/config.toml`. The scripts already carry it in the temporary config they write. |
+| `no iframe for <origin> in the Chrome at …` | The record page is not open in that Chrome, or `--panel-url` does not match the panel's origin exactly. Open the record, then check the URL you passed. |
+| `WebMCP is not available in this panel` | The flag is off in that profile. Use `scripts/agents/chrome.sh`, or seed `Local State` as described above, then relaunch. |
+| `<tool> is not granted to this origin in the current phase` | Working as intended: the phase moved. Ask your agent what it holds now. |
+| `API Error: … safeguards flagged this message … [reasoning_extraction]` | Your account's default model refused the seats' verdict prompt. Re-run with `BOARD_AGENT_MODEL=opus`. |
+
+#### Verified on 1 and 2 Sep 2026, and not verified
+
+Run twice end to end on the deployed sites, both times to `CONFIRMED`: once with all four parties as
+one-shot `claude -p` sessions, once with the owner's own interactive Claude Code session as Advocate
+A. Codex was driven against the same deployed record on 2 Sep 2026. What those runs established, and
+what they did not, is the list below.
+
+**Verified:**
+
+- Per-frame partition, queried inside each frame on the deployed origins.
+- Refusals reaching an MCP client as errors, in Claude Code.
+- `tools/list_changed` honoured live by Claude Code 2.1.252, in both directions: tools appearing when
+  a phase opens, and gone from the list after confirmation.
+- A call to a withdrawn tool refused against a fresh browser list.
+- Objections stored, shown on the record as `O1 · ADVOCATE A` with the objection's own text on the
+  line below it, and visible in `read_board`.
+- Missing or invalid required fields refused with a plain reason instead of crashing or filing a
+  blank. Chrome does not check tool input against the schema, so the record does.
+- The "Powered by Netlify" badge is off on all five sites.
+- **Codex, as Advocate A, on 2 Sep 2026.** Registered with `codex mcp add`, it listed exactly
+  Advocate A's six tools (`file_fact`, `read_board`, `concede`, `open_exhibit`, `dispute`,
+  `file_exhibit`), called `read_board {section:"summary"}` against the live record (phase `FILING`,
+  5 exhibits, 7 facts), and took a refusal as a failed tool call carrying the record's own wording
+  word for word: `refused: no such exhibit: E9; use an exhibit id that was actually filed`.
+- **A Codex write reaching the record, with Codex's sandbox left on.** With the
+  `default_tools_approval_mode` line on that server's block, `codex exec --sandbox read-only` called
+  `file_fact` and the call went through to the record, which answered with that same refusal. Without
+  the line, the identical run stopped at `user cancelled MCP tool call`.
+- **A `BOARD_AGENT=codex` script run, end to end, on 2 Sep 2026.** `scripts/agents/b.sh` with
+  `BOARD_AGENT=codex` filed exhibit `E6`, filed fact `F8` countering `F7` and pointing at `E6`, then
+  opened A's exhibit and filed dispute `D1` quoting `E4`. Every call landed on the record under
+  Advocate B's origin, with Codex's own sandbox left on.
+
+**Not verified:**
+
+- **Whether an interactive Codex session refreshes its tool list mid-phase.** Claude Code 2.1.252
+  was checked for this on 1 Sep 2026 and honoured `tools/list_changed` in both directions. The same
+  check has not been run against Codex, so on Codex assume you may need to restart the session after
+  a phase moves.
+- **The Codex desktop app.** Everything above was the `codex` CLI. The app reads the same
+  `~/.codex/config.toml`, so a hand-registered server should behave the same way there, but that has
+  not been run.
+
+This is a bridge for Claude Code and Codex, not a claim that either product natively implements
+cross-origin WebMCP. The long-form version of this runbook, with the security boundary spelled out,
+is `docs/EXTERNAL-AGENTS.md`.
+
+### Driving the scripted demo (Path A, no agent needed)
 
 The steps below assume Path A (`?offline=1`), since it needs nothing configured.
 
@@ -264,12 +591,19 @@ The steps below assume Path A (`?offline=1`), since it needs nothing configured.
      because: 'the log states it directly'
    }));
 
-   // A quote that is not actually on that page — refused outright, not a warning:
-   await document.modelContext.executeTool(record_assessment, JSON.stringify({
+   // A quote that is not actually on that page: refused outright, not a warning.
+   // Deliberate refusals resolve as a typed envelope because Chrome replaces
+   // messages from rejected tool executions with a generic DOMException.
+   const refused = JSON.parse(String(await document.modelContext.executeTool(record_assessment, JSON.stringify({
      factId: 'F6', exhibitId: 'E1', locator: { page: 3 },
      finding: 'supported', quote: 'the deliverable was defective', because: 'of the log'
-   })).catch(e => console.log('REFUSED:', e.message));
+   }))));
+   console.log('REFUSED:', refused.reason);
    ```
+   Every successful call travels through the same one-layer envelope (`{ ok: true, result }`). That
+   keeps counterparty-authored exhibit text from forging a `{ refused: true, reason }` response. The
+   record logs a refused attempt, the panel renders its recovery message, and the manifest's `used`
+   count increases only after a successful call.
    A fresh tab opened directly at a panel's own URL will not work here: tools are registered by the
    record page's document and only handed to a panel's iframe cross-origin, so a standalone tab was
    never granted anything and `getTools()` there returns `[]`.
@@ -309,6 +643,50 @@ because a `.toml` file can't import TypeScript; a test (`netlify-headers.test.ts
 if either one drifts out of sync with `origins.ts`, so a stale production header cannot pass
 silently.
 
+## Why WebMCP made this possible
+
+Nothing in this section is a design opinion. Each point is a mechanism, and each one was checked by
+running it on 1 Sep 2026.
+
+**Without WebMCP, the tools would live on a server and this app would decide who may call what.**
+That is the same black box the project is arguing against: their AI, arguing for me, with the room's
+own software deciding what it was allowed to touch. With WebMCP the record page registers each tool
+with `exposedTo` naming one origin, and the browser decides which frame can see it and call it. That
+was checked per frame on the deployed sites: during FILING, Advocate A's frame lists `a__*` tools
+only, Advocate B's lists `b__*` only, and the two seats' frames list nothing at all.
+
+**The agent behind a frame is interchangeable. The hand is not.** The in-page panel model, the
+owner's own Claude Code session reaching in over MCP, and a Codex session
+all see exactly the same tools, because the hand belongs to the frame, not to the model holding it.
+The bridge that lets an outside coding agent in only forwards `getTools` and `executeTool` from
+inside the frame. It has no `actor` argument to forge. Swap the model and nothing about the boundary
+moves.
+
+**A phase is an `AbortController`, because WebMCP has no `unregisterTool`.** A registration lives
+exactly as long as the signal it was made with. So closing a phase does not ask ten tools to stop
+working; it aborts one signal and they leave every hand at the same instant. Watched live tonight
+from outside the browser: after the owner clicked "Open review," the same long-lived Claude Code
+session, not restarted, answered "Tools I hold now: `read_board` and `object`. That's it." After the
+final confirmation, the same client reported the withdrawn tools simply gone.
+
+**The one control WebMCP never hands out is the one a person owns.** `confirm` is not a tool for any
+origin, in any phase. It appeared in no `getTools()` result anywhere in the run. A person presses it
+on the page. What the page does not check is which person: the bar takes any name typed into it. That
+is an identity problem, and it is the next one, not one this build solves.
+
+**A reader does not have to trust this project's own manifest.** Chrome ships its own first-party
+panel for this API at DevTools, Application, WebMCP, and it lists the tools actually registered to a
+chosen origin. Tonight's per-frame check went through the same debugging channel that panel uses,
+asking the browser directly rather than reading anything this project renders. Reading the same thing
+in the DevTools panel itself is a two-minute cross-check anyone can repeat: open the record page,
+then DevTools, Application, WebMCP, and pick a panel origin.
+
+**What WebMCP still lacks, stated as an ask.** There is no way for a page to say which model sits
+behind a tool it hands out. So this project can prove that the two board seats held different tools
+and read different documents, and it cannot prove they were two different models. Everything about
+who read what is on the record; the identity of the reader is not, and today no browser API would let
+it be.
+
 ## Architecture
 
 ![Architecture diagram: one parent origin owning the record and the tool registry, four cross-origin panel frames each scoped by exposedTo, and a confirm control no agent can reach](docs/architecture.svg)
@@ -347,12 +725,22 @@ this project exists to demonstrate on camera.
 npm test
 ```
 
-**821 of 821 tests pass, across 51 test files, on Vitest 4.** That number covers every tool body,
+**867 of 867 tests pass, across 52 test files, on Vitest 4.** That number covers every tool body,
 every store, the phase machine, the ledger, the quote checker, the PDF text extraction, full-text
 search, the injection detector, the sanitiser, the record's UI components, the panel's agent loop
 and its five call states, the model proxy's gates and wire adapters, and — inside
 `packages/record/src/config/build-output.test.ts` — two real `vite build`s of both packages, read
 back off disk. What it does not cover is listed plainly below.
+
+The external-agent bridge is a separate suite: it runs on Node's own test runner rather than Vitest,
+because it is plain Node with no browser environment to build.
+
+```bash
+npm test --workspace=packages/external-agent
+```
+
+**22 of 22 tests pass**, covering the CDP client's timeouts and detach handling, the refusal
+envelope, the page-reload guard, and the per-tool schema parsing.
 
 ## Deploy it yourself
 
@@ -396,11 +784,11 @@ A host printing neither line did not pick up that package's `netlify.toml` (chec
 directory); values that don't match what's in this repo mean that site is stale — redeploy it rather
 than editing around it.
 
-This has been checked against a local, offline Netlify build (`netlify build --offline`), which
-validates the config, the headers, and that both server functions bundle correctly. It has not been
-checked against a real, live Netlify account: creating the five sites, connecting them, and setting
-their environment variables are steps that stay with whoever owns the deploy. As of this commit,
-none of the five URLs above resolve yet — verified directly, not assumed.
+The five sites listed above are live. Each returns HTTP 200 with the expected
+`Origin-Agent-Cluster` and `Permissions-Policy` headers. The deployed record and all four panels also
+contain the refusal-envelope fix from commit `471332c`: deliberate refusals cross WebMCP as resolved
+typed results, while genuine crashes still reject. Local `netlify build --offline` checks both site
+configurations and bundles the capture and model-proxy functions before deployment.
 
 ## When it does not work
 
@@ -440,6 +828,10 @@ as plainly as the claim.
   `confirm` being registered nowhere means no agent can call it as a tool; it does not mean no agent
   can click it. The tool boundary and the page a person can click on are two different surfaces, and
   this project only makes a claim about the first.
+- **`confirm` proves a person, not which person.** No origin ever holds it, so the claim that a human
+  presses it holds. What the page does not check is who that human is: the bar takes any name typed
+  into it. That is the next problem, and it is an identity problem, not a WebMCP one. Nothing in this
+  build should be read as verifying the name on a confirmation.
 - **Image citations cannot be checked by the page.** Text and PDF quotes are verified against the
   source, byte for byte after whitespace and case are normalised. A screenshot cannot be, so every
   finding against an image exhibit is stamped `human-check`, structurally, regardless of what is
@@ -452,35 +844,30 @@ as plainly as the claim.
   on the record instead of letting it pass quietly. The Board does not stop an agent from being
   fooled. It stops a fooled agent from being consequential, and it makes the attempt part of the
   record.
-- **Two claims are still unconfirmed in real Chrome: cross-origin tool discovery, and whether a
-  `Refusal` survives a cross-origin rejection.** Vitest runs in Node and jsdom, neither of which
-  enforces real browser origin isolation, so the claim that one origin cannot see another origin's
-  tools has not been verified in a real browser. The check is written up step by step as a hand-run
-  checklist, including a cross-check against Chrome's own DevTools → Application → WebMCP pane, and
-  it has not yet been run. Separately, the marker that
-  lets the panel tell a genuine `Refusal` apart from a crash has only been tested same-origin — a
-  session spent trying to check it against a real cross-origin `executeTool` rejection lost the
-  browser connection on every attempt. These are the two claims the whole boundary rests on, so they
-  are named here without softening.
-
-  What real Chrome *has* confirmed this session, separately from those two: the focus rings genuinely
-  paint on every new control; contrast was measured from actual painted pixels — via
-  `getComputedStyle` plus an OKLCH→sRGB conversion — not computed on paper; the agent-card state chips
-  move `IDLE → DONE` on a real scripted run; the Setup form's save flow works end to end, including
-  the redacted key readout; both 404 pages render correctly in dark and light; and the panel's runtime
-  `<head>` was checked for one actor. Neither list should be read past what it actually says — this
-  section will be updated again once the hand-run itself is executed.
-- **`pdf.js` is stubbed everywhere in the automated test suite.** The unit tests exercise the
-  extraction logic against a fake loader on purpose, so they stay fast and deterministic. Whether the
+- **The live Chrome run proved the record-side process, and the per-frame check is now done too.**
+  The deployed run completed file, dispute, refusal, assessment, citation, verdict, appeal,
+  return-with-note and named-person confirmation through real `getTools()` and `executeTool()` calls.
+  Chrome withdrew all filing tools on entry to review, kept the longer-lived read tools in verdict,
+  and left only `read_board` after confirmation. Those calls were driven from the record document,
+  which can see its own registrations, so a second check was owed: query `getTools({ fromOrigins })`
+  from inside each panel frame and see whether a frame gets only its own actor's grants. That was run
+  on 1 Sep 2026, on the deployed origins, over CDP (the Chrome DevTools Protocol, the debugging
+  channel a program uses to run code inside a tab). During FILING, Advocate A's frame listed `a__*`
+  tools only, Advocate B's listed `b__*` only, and both seats' frames listed nothing. What remains
+  open is narrower than it was: the refusal envelope is deployed and a refusal was seen to reach an
+  external MCP client as an error, but the in-page panel's own recovery text has still not been
+  watched rendering from a real panel context.
+- **`pdf.js` is stubbed in the automated test suite, and its browser path has now been checked live.**
+  The unit tests exercise the extraction logic against a fake loader on purpose, so they stay fast
+  and deterministic. Whether the
   real `pdfjs-dist` package actually parses a real file through this project's own Vite/worker wiring
-  was verified once, outside this repo's test suite, in a standalone Node script against the exact
+  was first verified outside this repo's test suite, in a standalone Node script against the exact
   base64 bytes `scenario.ts` embeds as exhibit `E1`. That script (`pdfjs-dist@6.2.108`, the version
   this repo pins) opened the real document, extracted all four pages, and got back the exact text
   this project's own fixtures expect — including the page-4 phrase fact `F1` points at — with a
-  console verdict of `VERIFICATION PASSED`. That proves the bytes and the package; it does not prove
-  the browser path. The same check against this project's own browser-side wiring — worker loading,
-  Vite bundling, a real Chrome tab — is prescribed step by step in a hand-run checklist and has not
-  yet been performed.
+  console verdict of `VERIFICATION PASSED`. The live Chrome hand-run then called `extract_text` on E1
+  and returned the exact page-4 sentence through the deployed Vite/worker path. The browser path is
+  therefore verified; the automated suite still uses its deterministic stub.
 - **The link-capture function and the model proxy are demo-shaped, not production-shaped.**
   [`packages/record/netlify/functions/capture.ts`](packages/record/netlify/functions/capture.ts)
   fetches any user-supplied `https` URL with no allowlist. It was hardened on 30 Aug 2026 — manual
@@ -526,21 +913,24 @@ as plainly as the claim.
   naming B is caught in that same position, since "B" has no such collision. This is written down as
   a comment in [`packages/record/src/injection/detect.ts`](packages/record/src/injection/detect.ts)
   and pinned by a dedicated test, not silently left for someone to rediscover.
-- **The tool-lifetime claim is scoped to this project's own panels, and to what unit tests can
-  show.** What the automated suite actually verifies is that this project's own panels, which call
-  `getTools()` fresh at the start of every turn, see a different tool list before and after a phase
+- **The tool-lifetime claim is scoped to this project's own panels.** The automated suite verifies
+  that these panels call `getTools()` fresh at the start of every turn and see a different tool list before and after a phase
   closes, against a stand-in `ModelContext` in Vitest
-  ([`packages/record/src/webmcp/fakeModelContext.ts`](packages/record/src/webmcp/fakeModelContext.ts)),
-  not against real WebMCP in a real browser. A real-browser check of the same behaviour is written up
-  and has not yet been run (see the cross-origin discovery limitation above). Separately, a probe page
+  ([`packages/record/src/webmcp/fakeModelContext.ts`](packages/record/src/webmcp/fakeModelContext.ts)).
+  The live Chrome run also saw the registered filing tools disappear on entry to review and the
+  verdict grants change again after an appeal, and the per-frame check above confirmed that each
+  frame is handed only its own actor's tools. One outside client did notice a phase change
+  mid-session on 1 Sep 2026: a Claude Code session running through this project's own bridge answered
+  with its new, shorter tool list without being restarted. Read that for exactly what it is. The
+  bridge polls the browser's tool list every 750 ms and then sends MCP's own `tools/list_changed`, so
+  what was proven is that an MCP client acts on that notice, not that a browser pushes anything to a
+  third-party agent. Separately, a probe page
   built to check whether a genuinely external, third-party agent, not one of these four panels,
   notices a tool appearing or disappearing mid-session (registers one tool, adds a second at t+20s,
   aborts both at t+40s, watching whether an already-open third-party client picks up either change
   without being told to look again) has been read through by eye but never opened in a browser or run
   against a real client — marked plainly **UNRUN**, not cited as evidence of anything. This submission
-  claims the tool-lifetime beat
-  only for the in-page panels it ships, covered by unit tests against a stand-in `ModelContext` plus
-  a real-browser check that is written down and not yet run, and makes no claim about how any
+  claims the tool-lifetime beat only for the in-page panels it ships and makes no claim about how any
   external agent would behave.
 - **`packages/record/src/config/build-output.test.ts` runs two real `vite build`s inside the test
   suite**, against both packages' actual `vite.config.ts`, then reads the real `dist/` output off

@@ -55,7 +55,18 @@ describe('App — the masthead clock never reads the live exhibit store', () => 
     // Finish task: `execute` now resolves with `Ledger.wrap`'s own JSON
     // envelope (`ledger.ts`), never the raw board object — parsed here and
     // asserted against the unwrapped `result`.
-    const observed = mc.tools.find((t) => t.live && bareToolName(t.name) === 'read_board');
+    // The OBSERVER's read, matched on its registered name rather than its
+    // bare one. Task 4 gave A and B a `read_board` of their own, registered
+    // as `a__read_board`/`b__read_board`, whose payload is the party's
+    // sectioned view and carries no `exhibits` array at all — a bare-name
+    // match would pick whichever of the three registered first and assert
+    // against the wrong shape. The unprefixed name is the unscoped grant.
+    const observed = mc.tools.find((t) => t.live && t.name === 'read_board');
+    // Assert the grant EXISTS before asserting through it. The `if` below is
+    // narrowing for the type checker, not a licence to skip: without this
+    // line, an unscoped `read_board` that stopped being registered at all
+    // would take the whole observer assertion with it and still pass green.
+    expect(observed).toBeDefined();
     if (observed) {
       const wire = JSON.parse((await observed.execute({})) as string) as { ok: true; result: { exhibits: unknown[] } };
       expect(wire.result.exhibits.length).toBe(6);

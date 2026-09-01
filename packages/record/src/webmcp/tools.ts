@@ -5,12 +5,15 @@ import type { Actor, Phase } from '../model/types';
  * Three overlap deliberately: the board keeps reading while it drafts, and an
  * appeal outlives nothing but its own spending.
  */
-export type Lifetime = 'filing' | 'partyObject' | 'boardRead' | 'verdictDraft' | 'appealA' | 'appealB';
+export type Lifetime = 'filing' | 'partyRead' | 'partyObject' | 'boardRead' | 'verdictDraft' | 'appealA' | 'appealB';
 
 export const PHASE_ORDER: Phase[] = ['FILING', 'REVIEW', 'VERDICT', 'CONFIRMED'];
 
 export const LIFETIME_WINDOW: Record<Lifetime, { startsAt: Phase; endsAfter: Phase }> = {
   filing:       { startsAt: 'FILING',  endsAfter: 'FILING'  },
+  // A party may read the public record for as long as its case is live, which
+  // is every phase except the one after it closes.
+  partyRead:    { startsAt: 'FILING',  endsAfter: 'VERDICT' },
   partyObject:  { startsAt: 'REVIEW',  endsAfter: 'REVIEW'  },
   boardRead:    { startsAt: 'REVIEW',  endsAfter: 'VERDICT' },
   verdictDraft: { startsAt: 'VERDICT', endsAfter: 'VERDICT' },
@@ -76,6 +79,39 @@ const basisFactIdProp = { type: 'string', description: 'The id of the rule fact 
 const reasonProp = { type: 'string', description: 'Why you are spending your appeal, in one or two sentences.' };
 const contestsProp = { type: 'string', description: 'The id of the fact or citation you are contesting. Optional.' };
 
+// F10: the old text promised "any draft verdict"; the payload never carried
+// one. Say what it actually returns.
+export const READ_BOARD_DESCRIPTION =
+  'Returns the state of this page as structured data: the phase, every agent with its ' +
+  'origin and what it was and was not handed, every registration the browser refused, the ' +
+  'ledger of calls made so far, the facts, the exhibits (metadata only, never their text), ' +
+  'the objections, and the confirm rule. Read-only. Calling this changes nothing and is ' +
+  'itself recorded in the ledger.';
+// Trimmed from the brief's wording, which ran 154 characters — four over
+// Chrome's published 150-char parameter-description budget, which
+// tools.test.ts pins. Same list, same instruction, four fewer characters.
+const sectionProp = { type: 'string', description: 'Which part to read: summary (default), facts, exhibits, disputes, objections, assessments, verdicts or ledger. One at a time, so answers stay short.' };
+
+/**
+ * The scoped read, declared once and spread into the two specs that carry it:
+ * the parties' (lifetime `partyRead`) and the seats' (lifetime `boardRead`).
+ * The two differ ONLY in who holds it and for how long, so sharing the fields
+ * is what stops the title, the description or the schema drifting apart
+ * between them — `anthropic.ts` builds one schema map keyed by bare name and
+ * would otherwise show a model whichever copy was declared last.
+ *
+ * `open_exhibit` duplicates inline instead of sharing, and that is not an
+ * inconsistency: its two copies say genuinely different things ("Read an
+ * exhibit" to a seat, "Read a document the other side filed" to a party).
+ * Nothing here differs by reader.
+ */
+const READ_BOARD_SCOPED = {
+  readOnly: true,
+  title: 'Read the board',
+  description: 'Read the public record, one section at a time: summary (phase, what you hold, latest moves), facts, exhibits, disputes, objections, assessments, verdicts, or ledger. Never exhibit text: opening a document is its own receipted step. Read-only; every read is itself recorded.',
+  inputSchema: obj({ section: sectionProp }, [])
+};
+
 export const TOOLS: ToolSpec[] = [
   { name: 'file_exhibit', lifetime: 'filing', actors: ['A', 'B'], readOnly: false,
     title: 'File an exhibit',
@@ -102,6 +138,13 @@ export const TOOLS: ToolSpec[] = [
     description: 'Contest a fact by pointing at the passage you say is wrong, and saying why.',
     inputSchema: obj({ factId: factIdProp, exhibitId: exhibitIdProp, locator: locatorSchema, quote: quoteProp, because: becauseProp },
                      ['factId', 'exhibitId', 'quote', 'because']) },
+
+  // A party may read the public record while its case is live. The masthead
+  // promises "written down here where the other side can read it"; this is
+  // that promise as a tool. Same name as the observer's read, but scoped to
+  // an origin, ledgered under it, and sectioned so each answer fits the
+  // output budget. Withdrawn at CONFIRMED, when only the observer still reads.
+  { name: 'read_board', lifetime: 'partyRead', actors: ['A', 'B'], ...READ_BOARD_SCOPED },
 
   { name: 'object', lifetime: 'partyObject', actors: ['A', 'B'], readOnly: false,
     title: 'Object',
@@ -137,6 +180,21 @@ export const TOOLS: ToolSpec[] = [
     title: 'Search every exhibit',
     description: 'Full-text search across everything filed. Returns hits with exhibit ids and locators.',
     inputSchema: obj({ query: queryProp }, ['query']) },
+
+  // The seats read the same board, under their OWN lifetime: `boardRead` is
+  // REVIEW through VERDICT, so a seat reads exactly while it is reading, and
+  // not while the parties are still filing.
+  //
+  // Why it had to exist: a seat's whole hand was open_exhibit, extract_text,
+  // search_exhibits and record_assessment, and NONE of those returns a fact
+  // id or the list of facts — while `record_assessment` requires a `factId`.
+  // So a seat driven by a real agent had to guess which facts existed. In the
+  // live rehearsal both seats inferred F1-F3 from the exhibits, happened to be
+  // right, and one of them said so in its own report. A reader asked to assess
+  // facts must be able to read the facts. Still never exhibit text: opening a
+  // document stays its own receipted step, which is what makes the quote check
+  // on record_assessment mean anything.
+  { name: 'read_board', lifetime: 'boardRead', actors: ['seat1', 'seat2'], ...READ_BOARD_SCOPED },
 
   // RENAMED from 'assess' per Chrome's naming rule: a tool name must distinguish
   // execution from initiation. Also gives the manifest's sorted output a name that
@@ -186,8 +244,9 @@ export const ALL_TOOL_NAMES = [...new Set(TOOLS.map((t) => t.name)), ...NEVER_GR
  * explicit: "If tool map[tool name] exists, then return a promise rejected
  * with an InvalidStateError DOMException."
  *
- * This design hands both advocates the same five capabilities and both seats
- * the same six. Registering each under one shared name meant Chrome accepted
+ * This design hands both advocates the same five filing capabilities and both
+ * seats the same seven (six until the seats were given their own
+ * `read_board`). Registering each under one shared name meant Chrome accepted
  * the FIRST actor's copy and refused the second's, so Advocate B and Seat 2
  * ended up holding nothing at all. Observed in Chrome 152 on 30 Aug 2026, on
  * the first run in a real browser. No unit test caught it, because the test
@@ -274,11 +333,7 @@ export const OBSERVER_TOOLS: {
   {
     name: 'read_board',
     title: 'Read the whole board',
-    description:
-      'Returns the entire state of this page as structured data: the phase, every agent with its ' +
-      'origin and what it was and was not handed, every registration the browser refused, the ' +
-      'ledger of calls made so far, the case material, and any draft verdict. Read-only. Calling ' +
-      'this changes nothing and is itself recorded in the ledger.',
+    description: READ_BOARD_DESCRIPTION,
     inputSchema: { type: 'object', properties: {}, additionalProperties: false }
   }
 ];

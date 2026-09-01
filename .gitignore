@@ -15,3 +15,10 @@ coverage/
 docs/superpowers/
 *.md
 !README.md
+!packages/external-agent/briefs/*.md
+!cases/demo/*.md
+# The README's Path C points readers here for the long form: the security
+# boundary, the full troubleshooting table, and what was and was not verified.
+# A README citing a file the repo does not contain is a dead link on the one
+# page a stranger reads first, so this one ships by exception.
+!docs/EXTERNAL-AGENTS.md

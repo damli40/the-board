@@ -22,6 +22,7 @@ import { Receipts, AssessmentStore } from './model/receipts';
 import { FactStore } from './model/facts';
 import { DisputeStore } from './model/disputes';
 import { VerdictStore } from './model/verdict';
+import { ObjectionStore, type Objection } from './model/objections';
 import { CaseOutcome } from './model/outcome';
 import { createToolImpl } from './tools/impl';
 import { loadScenario } from './scenario';
@@ -31,7 +32,7 @@ import { PhaseRail } from './ui/PhaseRail';
 import { RefusalBanner } from './ui/RefusalBanner';
 import { DoublePrompt } from './ui/DoublePrompt';
 import { ManifestSection, Mark } from './ui/Manifest';
-import { Docket, ToolHandStrip } from './ui/Docket';
+import { Docket, ToolHandStrip, shortTime } from './ui/Docket';
 import { ExhibitList } from './ui/ExhibitList';
 import { VerdictPanel } from './ui/VerdictPanel';
 import { ConfirmBar } from './ui/ConfirmBar';
@@ -119,6 +120,35 @@ export function FactsColumn({ facts }: { facts: Fact[] }) {
 }
 
 /**
+ * Objections, under the facts they were raised about (Fable F5). The `object`
+ * tool used to validate its text and throw it away, so this page could report
+ * that Advocate A objected and never report what A said — a tally mark, not a
+ * record. Same row styling as `FactsColumn` above, deliberately: an objection
+ * sits on the record beside a fact, not in some quieter register.
+ *
+ * Exported for the same reason `FactsColumn` is: so a test can render it with
+ * a real `ObjectionStore`'s output instead of driving the whole `<App/>`
+ * through a fake WebMCP registration to reach one row.
+ */
+export function ObjectionsColumn({ objections }: { objections: Objection[] }) {
+  if (objections.length === 0) {
+    return <p style={{ margin: 0, fontSize: 12, fontStyle: 'italic', color: 'var(--tb-ink-3)' }}>No objections.</p>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {objections.map((o) => (
+        <div key={o.id} data-testid={`objection-${o.id}`} style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 0', borderTop: '1px solid var(--tb-rule-3)' }}>
+          <span style={{ fontSize: 11, color: 'var(--tb-ink-3)' }}>
+            {o.id} · {ACTOR_LABEL[o.by]}
+          </span>
+          <span style={{ fontSize: 12.5, lineHeight: 1.45 }}>{o.text}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Every store, the registry and the phase machine, built once per page load
  * and kept for the case's whole lifetime — plain classes, not React state.
  * `tick` (returned alongside) is the seam: mutating one of these objects
@@ -142,6 +172,7 @@ function useEngine(mc: ModelContextLike, onStateChange: () => void) {
   const assessments = useRef<AssessmentStore | undefined>(undefined);
   const disputes = useRef<DisputeStore | undefined>(undefined);
   const verdicts = useRef<VerdictStore | undefined>(undefined);
+  const objections = useRef<ObjectionStore | undefined>(undefined);
   const caseOutcome = useRef<CaseOutcome | undefined>(undefined);
 
   if (!ledger.current) {
@@ -152,6 +183,7 @@ function useEngine(mc: ModelContextLike, onStateChange: () => void) {
     assessments.current = new AssessmentStore(exhibits.current, receipts.current);
     disputes.current = new DisputeStore(exhibits.current, receipts.current);
     verdicts.current = new VerdictStore(assessments.current, receipts.current, facts.current, exhibits.current);
+    objections.current = new ObjectionStore();
     caseOutcome.current = new CaseOutcome();
 
     // `createToolImpl` needs a `PhaseMachine`, and `PhaseMachine` needs a
@@ -167,6 +199,26 @@ function useEngine(mc: ModelContextLike, onStateChange: () => void) {
       assessments: assessments.current,
       disputes: disputes.current,
       verdicts: verdicts.current,
+      objections: objections.current,
+      // Task 4: the parties' own `read_board`. Reads the SAME snapshot the
+      // visiting agent's read is built from (see `boardSnapshot` below), and
+      // takes only the three parts a party is entitled to as a party — the
+      // phase, the hands, and the ledger. The stores it also needs, it holds
+      // directly. Lazy for the same reason `getPhaseMachine` is: nothing
+      // below exists yet at this line.
+      readBoard: () => {
+        const s = boardSnapshot();
+        return {
+          phase: s.phase,
+          agents: s.agents,
+          // `at` is epoch milliseconds in the ledger; a party reading a line
+          // of it needs a clock time. Formatted with the same `shortTime` the
+          // docket prints, so the agent reading the board and the human
+          // reading the page see one timestamp, not two renderings of it.
+          // The visiting agent's payload keeps the raw number it always had.
+          ledger: s.ledger.map((e) => ({ origin: e.origin, tool: e.tool, at: shortTime(e.at), ok: e.ok }))
+        };
+      },
       getPhaseMachine: () => {
         if (!phaseMachine.current) throw new Error('phase machine not ready yet');
         return phaseMachine.current;
@@ -183,7 +235,47 @@ function useEngine(mc: ModelContextLike, onStateChange: () => void) {
     phaseMachine.current = new PhaseMachine(registry.current);
   }
 
+  /**
+   * The board as it is RIGHT NOW: the phase, who was handed what, what the
+   * browser refused, the ledger, and the case material.
+   *
+   * ONE definition, deliberately. Two readers need it — the visiting agent's
+   * `read_board` (registered by `openObserver` in `App` below) and the
+   * parties' own `read_board` (`createToolImpl` above) — and two object
+   * literals would be two answers to "what does the board say", on a page
+   * whose entire claim is that there is only one. The party's read takes a
+   * subset of this; it never gets its own version of it.
+   *
+   * A function, not a value, for the same reason `openObserver` always took
+   * one: an agent must read the board as it is now, never a picture of it
+   * taken at boot. It reads through the refs at CALL time, which is also what
+   * makes it safe to hand to `createToolImpl` before the registry and the
+   * phase machine exist — see the cycle note above.
+   */
+  function boardSnapshot() {
+    const registryNow = registry.current;
+    const phaseNow = phaseMachine.current;
+    if (!registryNow || !phaseNow) throw new Error('board not ready yet');
+    return {
+      phase: phaseNow.phase,
+      agents: ACTORS.map((a) => {
+        const m = registryNow.manifest(a);
+        return { actor: a, origin: m.origin, granted: m.granted, notGranted: m.notGranted };
+      }),
+      visitingAgent: registryNow.observerManifest(),
+      browserRefusedRegistrations: registryNow.registrationFailures(),
+      ledger: ledger.current!.all(),
+      exhibits: exhibits.current!.all().map((e) => ({ id: e.id, name: e.name, kind: e.kind, side: e.side })),
+      facts: facts.current!.all(),
+      objections: objections.current!.all(),
+      // Said in the data, not only in the UI, so an agent reading this cannot
+      // conclude that some tool somewhere could sign the verdict.
+      confirm: 'never registered to any agent, in any phase. A person presses it.'
+    };
+  }
+
   return {
+    boardSnapshot,
     ledger: ledger.current,
     registry: registry.current!,
     phaseMachine: phaseMachine.current!,
@@ -193,6 +285,7 @@ function useEngine(mc: ModelContextLike, onStateChange: () => void) {
     assessments: assessments.current!,
     disputes: disputes.current!,
     verdicts: verdicts.current!,
+    objections: objections.current!,
     caseOutcome: caseOutcome.current!,
   };
 }
@@ -289,10 +382,12 @@ export function App() {
     // which is the documented seam (CLAUDE.md sec. 4) that makes it reachable
     // by an agent that is not one of the four panel origins.
     //
-    // The snapshot is built HERE, at call time, because this is the only
-    // scope holding every store. Passing a function rather than a value is
-    // deliberate: an agent must read the board as it is now, never a picture
-    // of it taken at boot.
+    // The snapshot is built at call time by `useEngine`'s own
+    // `boardSnapshot` (Task 4), which is the only scope holding every store
+    // AND the one the parties' `read_board` reads from too — one definition
+    // of "what the board says", not one per reader. Passing a function
+    // rather than a value is deliberate: an agent must read the board as it
+    // is now, never a picture of it taken at boot.
     // Fix round 2, Minor: this used to be `void openObserver(...)` with no
     // `.then`, and `refresh()` only ran after `loadScenario` resolved below
     // — no ordering guarantee between the two async calls. On a page whose
@@ -301,21 +396,7 @@ export function App() {
     // refusal) had actually settled. Chaining `.then(refresh)` here means a
     // re-render happens the instant THIS registration is known, not
     // whenever some unrelated effect next happens to trigger one.
-    void engine.registry.openObserver(() => ({
-      phase: engine.phaseMachine.phase,
-      agents: ACTORS.map((a) => {
-        const m = engine.registry.manifest(a);
-        return { actor: a, origin: m.origin, granted: m.granted, notGranted: m.notGranted };
-      }),
-      visitingAgent: engine.registry.observerManifest(),
-      browserRefusedRegistrations: engine.registry.registrationFailures(),
-      ledger: engine.ledger.all(),
-      exhibits: engine.exhibits.all().map((e) => ({ id: e.id, name: e.name, kind: e.kind, side: e.side })),
-      facts: engine.facts.all(),
-      // Said in the data, not only in the UI, so an agent reading this cannot
-      // conclude that some tool somewhere could sign the verdict.
-      confirm: 'never registered to any agent, in any phase. A person presses it.'
-    })).then(refresh);
+    void engine.registry.openObserver(engine.boardSnapshot).then(refresh);
 
     void loadScenario({ exhibits: engine.exhibits, facts: engine.facts }).then((seeded) => {
       // The fixture's own return value, not `engine.exhibits.all()` — see
@@ -635,6 +716,17 @@ export function App() {
             </RecordColumn>
             <RecordColumn heading="Facts on the record" sub="Filed with file_fact. A filled disc is agreed, a hollow ring is not yet contested, a struck ring is disputed.">
               <FactsColumn facts={engine.facts.all()} />
+              {/*
+                F5: objections live under the facts, in the same column, because
+                that is what they are about. Kept visually secondary to the facts
+                above them — recorded, not adjudicated — but present in full, so
+                a viewer can read what was said rather than only that something
+                was said.
+              */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                <h4 style={{ margin: 0, fontSize: 12, fontWeight: 700 }}>Objections</h4>
+                <ObjectionsColumn objections={engine.objections.all()} />
+              </div>
             </RecordColumn>
             <RecordColumn heading="Record of steps" sub="Every call any agent made, in order, with what came back.">
               <Docket entries={engine.ledger.all()} />

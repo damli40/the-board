@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm test",
+    "agent:bridge": "npm start --workspace=packages/external-agent --",
     "dev:origins": "node scripts/dev-origins.mjs",
     "demo": "npm run dev:origins",
     "build:all": "npm run build --workspace=packages/record && npm run build --workspace=packages/panel"

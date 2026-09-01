@@ -29,6 +29,7 @@ import { FactStore } from './facts';
 import { Receipts, AssessmentStore } from './receipts';
 import { DisputeStore } from './disputes';
 import { VerdictStore } from './verdict';
+import { ObjectionStore } from './objections';
 import { createToolImpl, type ToolImplDeps } from '../tools/impl';
 import type { PhaseMachine } from '../webmcp/phases';
 import { ORIGIN } from '../config/origins';
@@ -70,7 +71,8 @@ function buildStores() {
   const assessments = new AssessmentStore(exhibits, receipts);
   const disputes = new DisputeStore(exhibits, receipts);
   const verdicts = new VerdictStore(assessments, receipts, facts, exhibits);
-  return { exhibits, facts, receipts, assessments, disputes, verdicts };
+  const objections = new ObjectionStore();
+  return { exhibits, facts, receipts, assessments, disputes, verdicts, objections };
 }
 
 function buildImpl() {
@@ -82,7 +84,13 @@ function buildImpl() {
     spendAppeal: () => {},
     enter: async (_next: Phase) => {}
   } as unknown as PhaseMachine;
-  const deps: ToolImplDeps = { ...stores, getPhaseMachine: () => phaseMachine };
+  const deps: ToolImplDeps = {
+    ...stores,
+    // Nothing here reads the board's non-store half; it exists so the
+    // constructor is satisfiable.
+    readBoard: () => ({ phase: 'FILING' as Phase, agents: [], ledger: [] }),
+    getPhaseMachine: () => phaseMachine
+  };
   return { impl: createToolImpl(deps), ...stores };
 }
 
@@ -163,6 +171,47 @@ describe('the no-forgery invariant (fix round 2, N7)', () => {
     it('extract_text: a poisoned exhibitId never surfaces at the start of the message', async () => {
       const { impl } = buildImpl();
       const message = await asyncMessageOf(() => impl.extract_text({ exhibitId: POISON, page: 1 }, ORIGIN.seat1));
+      expect(message.startsWith(Refusal.MARKER)).toBe(false);
+    });
+
+    it('file_exhibit: a poisoned kind never surfaces at the start of the message', async () => {
+      const { impl } = buildImpl();
+      const message = await asyncMessageOf(() => impl.file_exhibit({ kind: POISON, name: 'x', content: 'y' }, ORIGIN.A));
+      expect(message.startsWith(Refusal.MARKER)).toBe(false);
+    });
+
+    it('file_fact: a poisoned exhibitId never surfaces at the start of the message', async () => {
+      const { impl } = buildImpl();
+      const message = await asyncMessageOf(() => impl.file_fact({ text: 'claim', exhibitId: POISON }, ORIGIN.A));
+      expect(message.startsWith(Refusal.MARKER)).toBe(false);
+    });
+
+    it('record_assessment: a poisoned factId and a poisoned finding never surface at the start of the message', async () => {
+      const { impl, exhibits, facts, receipts } = buildImpl();
+      const byFactId = await asyncMessageOf(() =>
+        impl.record_assessment({ factId: POISON, exhibitId: 'E1', finding: 'supported', quote: 'x', because: 'x' }, ORIGIN.seat1)
+      );
+      expect(byFactId.startsWith(Refusal.MARKER)).toBe(false);
+
+      // Past the factId guard, so the FINDING guard is the one that fires.
+      await exhibits.add({ side: 'A', kind: 'text', name: 'x', bytes: bytes('the sky is blue'), filedAt: '2026-08-20T09:00:00Z' });
+      facts.file({ side: 'A', text: 'sky colour', points: { exhibitId: 'E1', locator: {} } });
+      receipts.markOpened('seat1', 'E1');
+      const byFinding = await asyncMessageOf(() =>
+        impl.record_assessment({ factId: 'F1', exhibitId: 'E1', finding: POISON, quote: 'the sky is blue', because: 'x' }, ORIGIN.seat1)
+      );
+      expect(byFinding.startsWith(Refusal.MARKER)).toBe(false);
+    });
+
+    it('cite: a poisoned factId never surfaces at the start of the message', async () => {
+      const { impl } = buildImpl();
+      const message = await asyncMessageOf(() => impl.cite({ factId: POISON }, ORIGIN.seat1));
+      expect(message.startsWith(Refusal.MARKER)).toBe(false);
+    });
+
+    it('read_board: a poisoned section name never surfaces at the start of the message', async () => {
+      const { impl } = buildImpl();
+      const message = await asyncMessageOf(() => impl.read_board({ section: POISON }, ORIGIN.A));
       expect(message.startsWith(Refusal.MARKER)).toBe(false);
     });
 

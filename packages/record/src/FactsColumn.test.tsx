@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { FactsColumn } from './App';
+import { FactsColumn, ObjectionsColumn } from './App';
+import { ObjectionStore } from './model/objections';
 import type { Fact } from './model/types';
 
 // Fix round 2, I3: C3 (fix round 1) said "add a test per status" and none
@@ -77,5 +78,24 @@ describe('FactsColumn — the three marks (C3)', () => {
   it('renders "no facts filed yet" when there are none', () => {
     render(<FactsColumn facts={[]} />);
     expect(screen.getByText('no facts filed yet')).toBeInTheDocument();
+  });
+});
+
+// Fable F5: the `object` tool used to validate its text and throw it away,
+// so the page could say an objection HAPPENED and never what it said. These
+// drive the real store, not a hand-written fixture, so the row can only
+// render text the store actually kept.
+describe('ObjectionsColumn — an objection is shown in full (F5)', () => {
+  it('renders the objection text the store recorded, with its id and who raised it', () => {
+    const store = new ObjectionStore();
+    store.record({ by: 'A', text: 'seat 1 never opened E3', at: '2026-08-20T09:30:00Z' });
+    render(<ObjectionsColumn objections={store.all()} />);
+    expect(screen.getByText('seat 1 never opened E3')).toBeInTheDocument();
+    expect(screen.getByTestId('objection-O1')).toHaveTextContent('O1 · ADVOCATE A');
+  });
+
+  it('renders "No objections." when none have been raised', () => {
+    render(<ObjectionsColumn objections={[]} />);
+    expect(screen.getByText('No objections.')).toBeInTheDocument();
   });
 });

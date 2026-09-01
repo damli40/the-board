@@ -21,14 +21,23 @@ describe('PhaseMachine', () => {
     // Parties can also read during filing now — dispute requires it. Same tool,
     // different lifetime, different actors (ruling 2: the brief's four-tool
     // expectation was stale).
-    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toEqual(['concede', 'dispute', 'file_exhibit', 'file_fact', 'open_exhibit']);
+    //
+    // Task 4 adds `read_board` here: `partyRead` runs FILING through VERDICT,
+    // so a party holds its own read of the public record from the first phase
+    // — a second spec under the same name as the observer's, scoped to this
+    // origin instead of registered without one.
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toEqual(['concede', 'dispute', 'file_exhibit', 'file_fact', 'open_exhibit', 'read_board']);
     expect(mc.capabilitiesVisibleTo(ORIGIN.seat1)).toEqual([]);
   });
 
   it('withdraws filing and opens the board when review begins', async () => {
     await phases.enter('REVIEW');
-    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toEqual(['object']);
-    expect(mc.capabilitiesVisibleTo(ORIGIN.seat1)).toEqual(['extract_text', 'open_exhibit', 'record_assessment', 'search_exhibits']);
+    // Filing is gone; `read_board` is not, because `partyRead` outlives it —
+    // a party can still read the record while the board is reading it.
+    expect(mc.capabilitiesVisibleTo(ORIGIN.A)).toEqual(['object', 'read_board']);
+    // `read_board` is in the seats' hand too now, under `boardRead` — the
+    // seats' own reading window, which starts here and not in FILING.
+    expect(mc.capabilitiesVisibleTo(ORIGIN.seat1)).toEqual(['extract_text', 'open_exhibit', 'read_board', 'record_assessment', 'search_exhibits']);
   });
 
   it('keeps the board reading while it drafts — boardRead outlives REVIEW', async () => {
