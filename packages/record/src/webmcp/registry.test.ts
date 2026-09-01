@@ -425,12 +425,17 @@ describe('ToolRegistry', () => {
       // the agent describe a board that stopped existing four phases ago — a
       // confident, plausible, wrong answer, which is the failure mode this
       // project cares most about.
+      //
+      // Finish task: `tool.execute` now resolves with `Ledger.wrap`'s own
+      // envelope (a JSON string), never the raw object `read` returned —
+      // see ledger.ts's own comment on why. Parsed here the same way
+      // loop.ts would, then asserted against the UNWRAPPED `result`.
       let phase = 'FILING';
       await registry.openObserver(() => ({ phase }));
       const tool = mc.tools.find((t) => t.name === 'read_board')!;
-      expect(await tool.execute({})).toMatchObject({ phase: 'FILING' });
+      expect(JSON.parse(await tool.execute({}) as string)).toMatchObject({ ok: true, result: { phase: 'FILING' } });
       phase = 'VERDICT';
-      expect(await tool.execute({})).toMatchObject({ phase: 'VERDICT' });
+      expect(JSON.parse(await tool.execute({}) as string)).toMatchObject({ ok: true, result: { phase: 'VERDICT' } });
     });
 
     it('publishes its own grant, so the capability is never unmanifested', async () => {

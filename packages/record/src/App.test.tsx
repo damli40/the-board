@@ -51,10 +51,14 @@ describe('App — the masthead clock never reads the live exhibit store', () => 
 
     // The live store now holds six exhibits, not five — this is what proves
     // the filing actually landed, distinct from the masthead assertion below.
+    //
+    // Finish task: `execute` now resolves with `Ledger.wrap`'s own JSON
+    // envelope (`ledger.ts`), never the raw board object — parsed here and
+    // asserted against the unwrapped `result`.
     const observed = mc.tools.find((t) => t.live && bareToolName(t.name) === 'read_board');
     if (observed) {
-      const board = (await observed.execute({})) as { exhibits: unknown[] };
-      expect(board.exhibits.length).toBe(6);
+      const wire = JSON.parse((await observed.execute({})) as string) as { ok: true; result: { exhibits: unknown[] } };
+      expect(wire.result.exhibits.length).toBe(6);
     }
 
     // The masthead clock must be untouched: it reads the fixture's own

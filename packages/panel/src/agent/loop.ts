@@ -525,12 +525,91 @@ function truncateForDisplay(text: string): string {
 }
 
 /**
- * Turns whatever `mc.executeTool` rejected with into an `AgentEntry`.
+ * FINISH TASK, verified live tonight against the deployed site in real
+ * Chrome (WebMCP flag on): a thrown tool body reaches this file as a
+ * generic `DOMException: "Tool was executed but the invocation failed..."`
+ * — Chrome replaces the real message ENTIRELY, so `Refusal.MARKER` and the
+ * refusal text behind it never survive a REJECTION. `Ledger.wrap`
+ * (ledger.ts) no longer relies on that channel: it now returns a one-layer
+ * JSON envelope for every call that RESOLVES — a deliberate refusal
+ * included — and only a genuine crash still rejects. This is parsed
+ * exactly once, here, at the point a call resolves — never re-derived
+ * downstream, the same "decide once" rule this file's own header comment
+ * already gives for `AgentEntry.kind`.
+ *
+ * The envelope wraps SUCCESSES too, not only refusals: if it wrapped only
+ * refusals, a successful call whose own result happened to BE the text
+ * `{"refused":true,"reason":"..."}` — an exhibit's counterparty-authored
+ * content, surfaced verbatim by `extract_text` — would parse as a refusal
+ * right here, which is a forgeable refusal, the exact C2 class this file
+ * already closed once for the old thrown-string design (see this file's
+ * own header comment). Enveloping every result means attacker text can
+ * only ever sit INSIDE `result` as a JSON string value; it can never BE the
+ * envelope. `loop.test.ts` pins that property against this function
+ * directly.
+ */
+interface OkEnvelope { ok: true; result: unknown }
+interface RefusedEnvelope { refused: true; reason: string }
+
+function parseToolEnvelope(wire: string): OkEnvelope | RefusedEnvelope | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(wire);
+  } catch {
+    return undefined;
+  }
+  if (parsed && typeof parsed === 'object') {
+    const obj = parsed as Record<string, unknown>;
+    if (obj.ok === true && 'result' in obj) return obj as unknown as OkEnvelope;
+    if (obj.refused === true && typeof obj.reason === 'string') return obj as unknown as RefusedEnvelope;
+  }
+  return undefined;
+}
+
+/**
+ * Turns whatever `mc.executeTool` RESOLVED with into either a success's raw
+ * text or a refusal's reason — the mirror of `classifyCallFailure`, below,
+ * for the RESOLVED half of the outcome space (see the comment on
+ * `parseToolEnvelope`, just above, for why that half now carries the
+ * refusal signal). `executeTool` resolving to `null` means a navigation —
+ * Chrome's own signal, not this project's envelope, since no tool body ran
+ * to completion in that case — checked first and unconditionally.
+ *
+ * A resolved value that fails to parse as either envelope shape should not
+ * happen from the real `Ledger.wrap`: every call this panel makes goes
+ * through it, and it wraps every resolution unconditionally. Kept
+ * defensive anyway (a double that predates the envelope, say), and treated
+ * as the raw wire text itself — NEVER as a refusal. Guessing "refused" from
+ * an unrecognised shape would reopen exactly the forgery the envelope
+ * exists to close.
+ */
+type CallSuccess = { kind: 'ok'; raw: string } | { kind: 'refused'; reason: string };
+
+function classifyCallSuccess(result: unknown, callName: string): CallSuccess {
+  if (result === null) return { kind: 'ok', raw: `${bareToolName(callName)}: navigated` };
+
+  const wire = String(result);
+  const envelope = parseToolEnvelope(wire);
+  if (envelope && 'refused' in envelope) return { kind: 'refused', reason: envelope.reason };
+  if (envelope && 'ok' in envelope) {
+    return { kind: 'ok', raw: typeof envelope.result === 'string' ? envelope.result : JSON.stringify(envelope.result) };
+  }
+  return { kind: 'ok', raw: wire };
+}
+
+/**
+ * Turns whatever `mc.executeTool` REJECTED with into an `AgentEntry`.
  * `refused` iff the record's own `Refusal.MARKER` survived the crossing —
  * that is the ONLY signal that means "the record refused this on purpose."
  * Everything else — an unmarked message, a bridge failure, a bug — is
  * `broke`, on purpose: this project would rather under-claim a refusal than
  * ever mislabel a crash as the boundary working (fix round 1, C1).
+ *
+ * FINISH TASK: a deliberate refusal no longer reaches this function at all
+ * in real Chrome — it resolves now (`classifyCallSuccess`, above), so this
+ * only ever classifies a genuine crash in practice. The marker check stays
+ * anyway, deliberately never deleted or loosened: a harmless fallback for a
+ * non-Chrome or test double that still rejects with a marked message.
  */
 function classifyCallFailure(err: unknown, tool: string): AgentEntry {
   const rawMessage = err instanceof Error ? err.message : String(err);
@@ -704,17 +783,28 @@ export async function runAgentTurn(goal: string, demo: DemoContext = {}): Promis
         // getTools() and arguments as a JSON STRING — not a name, and not
         // an object (CLAUDE.md §1).
         const result = await mc.executeTool(tool, JSON.stringify(call.arguments ?? {}));
-        // executeTool resolves to null when the tool triggers a navigation —
-        // null is not an error.
-        const raw = result === null ? `${bareToolName(call.name)}: navigated` : String(result);
+        // FINISH TASK: `result` now carries the record's own envelope
+        // (ledger.ts's `Ledger.wrap`) whenever the call resolved at all —
+        // `classifyCallSuccess` (above) is what unwraps it, and it is the
+        // ONLY place that decides refused-vs-ok for a resolved call. A
+        // deliberate refusal is exactly as real an outcome here as a
+        // success; it is handled inline, not thrown into `catch` below.
+        const outcome = classifyCallSuccess(result, call.name);
+
+        if (outcome.kind === 'refused') {
+          entries.push({ kind: 'refused', tool: bareToolName(call.name), text: outcome.reason });
+          messages.push({ role: 'tool', content: `REFUSED: ${outcome.reason}` });
+          continue;
+        }
+
         entries.push({
           kind: 'ok',
           tool: bareToolName(call.name),
-          // Fix round 2, N3: display-truncated. `raw` itself (untruncated)
-          // is still what feeds `forModel` below — this only bounds what a
-          // human reads.
+          // Fix round 2, N3: display-truncated. `outcome.raw` itself
+          // (untruncated) is still what feeds `forModel` below — this only
+          // bounds what a human reads.
           arg: call.arguments ? truncateForDisplay(JSON.stringify(call.arguments)) : undefined,
-          text: truncateForDisplay(raw)
+          text: truncateForDisplay(outcome.raw)
         });
 
         // Ruling 2 / fix round 1, Important 2: sanitise unless the tool
@@ -728,7 +818,7 @@ export async function runAgentTurn(goal: string, demo: DemoContext = {}): Promis
         // "absent" and "unknown" as "assume untrusted", and skip fencing
         // only when a tool has affirmatively declared it safe.
         const explicitlyTrusted = tool.annotations?.untrustedContentHint === false;
-        const forModel = explicitlyTrusted ? raw : sanitizeCounterpartyText(raw);
+        const forModel = explicitlyTrusted ? outcome.raw : sanitizeCounterpartyText(outcome.raw);
         messages.push({ role: 'tool', content: `${call.name} -> ${forModel}` });
       } catch (err) {
         // A failure is surfaced, never swallowed — it is the product

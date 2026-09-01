@@ -36,16 +36,29 @@ export interface LedgerEntry {
  * means as guards. `Ledger.wrap`'s catch below is the only place that reads
  * this class, and it is the one place that CAN: everything a tool body
  * throws passes through here on its way to the browser's real WebMCP
- * machinery, so this is upstream of the cross-origin boundary that erases
- * everything except the message string (verified against `loop.ts`'s own
- * comment on what Chrome hands back — only `.message` survives).
+ * machinery.
  *
- * So the type information has to be flattened into that string before it
- * crosses, which is what `MARKER` is for: prepended here, stripped back off
- * on the panel side (`loop.ts`). A message that does not carry it defaults
- * to "broke" on the far side — deliberately: calling a crash a refusal is
- * the lie this fixes, and calling a refusal a crash merely under-claims
- * what the record intended (per the finding's own ruling).
+ * FINISH TASK, verified live tonight against the deployed site in real
+ * Chrome (WebMCP flag on): a tool body that throws reaches the caller as a
+ * generic `DOMException: "Tool was executed but the invocation failed..."`
+ * — Chrome replaces the real message ENTIRELY, so `MARKER` prepended to a
+ * re-thrown message (the original design here) never survives the crossing
+ * at all. `.message` does not merely lose extra detail beyond the string;
+ * for a thrown value specifically, Chrome discards the string itself. The
+ * only channel that reliably crosses is the RESOLVED VALUE, so `wrap`
+ * (below) no longer re-throws a marked `Refusal` — it RETURNS a JSON
+ * envelope instead: `{refused:true,reason}`. `MARKER` and the
+ * `startsWith(Refusal.MARKER)` check on the panel side (`loop.ts`'s
+ * `classifyCallFailure`) are kept anyway, deliberately never deleted or
+ * loosened — a harmless fallback for a non-Chrome or test double that still
+ * rejects with a marked message, which is the one shape this file's own
+ * `wrap` no longer produces but cannot rule out every caller ever
+ * producing.
+ *
+ * A genuine crash is unaffected by any of this: it still throws, unmarked,
+ * and still crosses as Chrome's own generic DOMException — the honest wire
+ * shape for machinery failure, which Chrome gives us nothing better to say
+ * about either way.
  */
 export class Refusal extends Error {
   static readonly MARKER = '[board:refusal] ';
@@ -112,6 +125,31 @@ export class Ledger {
    * `try` has already completed, and `notify()` itself isolates each
    * subscriber (below) so one throwing listener can neither corrupt this
    * record nor stop the other listeners from running.
+   *
+   * FINISH TASK: every RESOLVED outcome — success or a deliberate refusal —
+   * now returns a one-layer JSON envelope, `{ok:true,result}` or
+   * `{refused:true,reason}`, instead of the bare result or a re-thrown
+   * marked message (see `Refusal`'s own comment, above, for why: verified
+   * live, Chrome erases a thrown message entirely, so the RETURN VALUE is
+   * the only channel that reliably crosses). The envelope wraps SUCCESSES
+   * too, not just refusals — if it only wrapped refusals, a successful call
+   * whose own result happened to BE the text
+   * `{"refused":true,"reason":"..."}` (an exhibit's counterparty-authored
+   * content, surfaced verbatim by `extract_text` or `search_exhibits`) would
+   * parse as a refusal on the panel side — a forgeable refusal, the exact
+   * C2 class this repo already closed once for the OLD thrown-string
+   * design. Enveloping every result means attacker text can only ever sit
+   * INSIDE `result` as a JSON string value; it can never BE the envelope.
+   * `loop.test.ts` and this file's own tests both pin that property.
+   *
+   * The result going into the envelope is whatever `run` resolved with —
+   * already a truncated STRING for every real panel-facing tool
+   * (`tools/impl.ts`'s `withTruncation` runs upstream of this, inside
+   * `run`), so truncation always bounds the INNER result before this
+   * function stringifies the envelope AROUND it. `JSON.stringify` escapes
+   * that inner string properly either way, so the envelope's own JSON
+   * structure can never break mid-string, no matter what the inner text
+   * contains or how it was cut.
    */
   wrap(origin: string, tool: string, run: ToolRun): (args: any) => Promise<unknown> {
     return async (args: any) => {
@@ -125,9 +163,9 @@ export class Ledger {
         // of view, and the docket only ever needed that two-way split (see
         // task 5's own brief: "the record's LedgerEntry carries only
         // ok:boolean... the panel can [distinguish further] because loop.ts
-        // sees the actual failure"). The marker is added ONLY to what is
-        // re-thrown, because the re-thrown message is the one thing that
-        // survives the trip across the cross-origin boundary to loop.ts.
+        // sees the actual failure"). Unchanged by the finish task: this is
+        // still the record's own account of what happened, independent of
+        // whatever shape crosses the wire.
         //
         // `failure` is decided the same way, right here, at the only point
         // that ever sees the real exception object: `instanceof Refusal` is
@@ -139,20 +177,47 @@ export class Ledger {
         this.entries.push({ origin, tool, at: this.clock(), ok: false, detail, failure });
         this.notify();
         if (err instanceof Refusal) {
-          throw new Error(`${Refusal.MARKER}${detail}`);
+          // FINISH TASK: no longer a re-thrown, marked message (see this
+          // class's own comment on why that channel is dead in real
+          // Chrome) — the envelope crosses as a RESOLVED value instead, so
+          // the promise this function returns resolves here, it does not
+          // reject.
+          return JSON.stringify({ refused: true, reason: detail });
         }
+        // A genuine crash is unaffected: still re-thrown, unmarked, and
+        // still the honest wire shape for machinery failure — Chrome's own
+        // generic DOMException is what a real caller actually sees, and
+        // this project would rather that than invent a friendlier lie.
         throw err;
       }
       this.entries.push({ origin, tool, at: this.clock(), ok: true });
       this.notify();
-      return result;
+      return JSON.stringify({ ok: true, result });
     };
   }
 
+  /**
+   * Scope extension, live hand-run finding: this used to count every entry
+   * for an origin regardless of `e.ok`, so a REFUSED attempt bumped the
+   * manifest's `used` number the same as a real success. Driving the full
+   * hand-run on the deployed site caught it directly: seat1's only
+   * `extract_text` call was deliberately refused
+   * (`seat1 has not opened E1`), and the capability table still showed
+   * `extract_text used=1` for a seat that never actually extracted
+   * anything — while this project's whole demo turns on that exact number
+   * ("these two seats disagree because one never read the PDF"). A live
+   * model that tries and gets refused mid-take flips the number and puts
+   * the spoken claim at war with the table on camera.
+   *
+   * The attempt is not erased by counting only successes — it is already
+   * fully visible as its own REFUSED row on the ledger tape
+   * (`ui/Docket.tsx`). `used` on a capability card means "what actually
+   * informed this agent," and a refused call informed nothing.
+   */
   countsFor(origin: string): Record<string, number> {
     const counts: Record<string, number> = {};
     for (const e of this.entries) {
-      if (e.origin === origin) counts[e.tool] = (counts[e.tool] ?? 0) + 1;
+      if (e.origin === origin && e.ok) counts[e.tool] = (counts[e.tool] ?? 0) + 1;
     }
     return counts;
   }
