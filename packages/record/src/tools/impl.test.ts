@@ -569,9 +569,17 @@ describe('createToolImpl', () => {
       expect(text.length).toBeLessThanOrEqual(TOOL_OUTPUT_BUDGET);
       // Fix round 1: sections are `{ rows, more }` now, not a bare array —
       // a party has to be able to tell a complete answer from a partial one.
-      // Seven is exactly the page size, so nothing is hidden here.
-      expect(JSON.parse(text).rows).toHaveLength(7);
-      expect(JSON.parse(text).more).toBe(0);
+      // 2 Sep: the facts page is FIVE rows, not seven, because each row now
+      // carries 200 characters of the claim instead of 100 — a seat matching
+      // a quote against a half-visible claim is not a check. Seven filed
+      // against a five-row page is the partial case, so this now also pins
+      // the way out of it.
+      const out = JSON.parse(text);
+      expect(out.rows).toHaveLength(5);
+      expect(out.more).toBe(2);
+      expect(out.shown).toBe('3-7 of 7');
+      expect(out.earlier).toBe('read_board again with from: 1');
+      expect(out.later).toBeUndefined();
     });
 
     it('refuses an unknown section and names the real ones', async () => {
@@ -605,7 +613,7 @@ describe('createToolImpl', () => {
     it('matches a section name whatever case the model wrote it in', async () => {
       const impl = createToolImpl(ctx.deps);
       const out = JSON.parse(await impl.read_board({ section: 'Facts' }, ORIGIN.A) as string);
-      expect(out).toEqual({ rows: [], more: 0 });
+      expect(out).toEqual({ rows: [], shown: 'none', more: 0 });
     });
 
     // -----------------------------------------------------------------
@@ -620,7 +628,7 @@ describe('createToolImpl', () => {
     describe('every section is bounded by row count, not only by field length', () => {
       /** 20 rows filed, minus each section's page size. */
       const EXPECTED_MORE: Record<string, number> = {
-        facts: 13, exhibits: 8, disputes: 10, objections: 12, assessments: 13, ledger: 5,
+        facts: 15, exhibits: 8, disputes: 10, objections: 12, assessments: 13, ledger: 5,
         // A verdict is stored per seat, so twenty cannot exist — two is the
         // whole population, and the page size is two. Paged anyway, for one
         // shape across every section rather than one special case.
@@ -678,7 +686,149 @@ describe('createToolImpl', () => {
         await fileTwentyOfEverything();
         const impl = createToolImpl(ctx.deps);
         const out = JSON.parse(await impl.read_board({ section: 'facts' }, ORIGIN.A) as string);
-        expect(out.rows.map((r: { id: string }) => r.id)).toEqual(['F14', 'F15', 'F16', 'F17', 'F18', 'F19', 'F20']);
+        expect(out.rows.map((r: { id: string }) => r.id)).toEqual(['F16', 'F17', 'F18', 'F19', 'F20']);
+      });
+
+      // -----------------------------------------------------------------
+      // 2 Sep 2026. Everything above pinned that a partial view ANNOUNCES
+      // itself. None of it pinned that the hidden rows could be reached,
+      // because they could not: `more` counted them and no argument existed
+      // to ask for them. A seat drafted a verdict on 7 of 9 facts and wrote
+      // the gap into its own grounds. These tests hold the way out open.
+      it('from: 1 reaches the oldest rows, which the default window hides', async () => {
+        await fileTwentyOfEverything();
+        const impl = createToolImpl(ctx.deps);
+        const out = JSON.parse(await impl.read_board({ section: 'facts', from: 1 }, ORIGIN.A) as string);
+        expect(out.rows.map((r: { id: string }) => r.id)).toEqual(['F1', 'F2', 'F3', 'F4', 'F5']);
+        expect(out.shown).toBe('1-5 of 20');
+        expect(out.later).toBe('read_board again with from: 6');
+        expect(out.earlier).toBeUndefined();
+      });
+
+      it('walking `later` from the first row reaches every row exactly once', async () => {
+        await fileTwentyOfEverything();
+        const impl = createToolImpl(ctx.deps);
+        const seen: string[] = [];
+        let from: number | undefined = 1;
+        for (let guard = 0; from !== undefined && guard < 20; guard += 1) {
+          const text = await impl.read_board({ section: 'facts', from }, ORIGIN.A) as string;
+          expect(text.length, 'a paged window ran past the output budget').toBeLessThanOrEqual(TOOL_OUTPUT_BUDGET);
+          const out = JSON.parse(text);
+          seen.push(...out.rows.map((r: { id: string }) => r.id));
+          const next = typeof out.later === 'string' ? Number(out.later.match(/from: (\d+)/)?.[1]) : undefined;
+          from = next;
+        }
+        expect(seen).toEqual(Array.from({ length: 20 }, (_, i) => `F${i + 1}`));
+      });
+
+      it('a `from` past the last row still returns a row, never an empty answer', async () => {
+        await fileTwentyOfEverything();
+        const impl = createToolImpl(ctx.deps);
+        const out = JSON.parse(await impl.read_board({ section: 'facts', from: 999 }, ORIGIN.A) as string);
+        expect(out.rows.map((r: { id: string }) => r.id)).toEqual(['F20']);
+        expect(out.shown).toBe('20-20 of 20');
+      });
+
+      it('refuses a `from` that is not a row number, rather than guessing one', async () => {
+        const impl = createToolImpl(ctx.deps);
+        for (const from of [0, -1, 'first', 1.9, null, {}, [1, 2], '7abc', NaN]) {
+          await expect(impl.read_board({ section: 'facts', from }, ORIGIN.A), `from: ${JSON.stringify(from)} was accepted`)
+            .rejects.toThrow(/from must be a whole number/);
+        }
+      });
+
+      it('does not echo an oversized argument back, in the refusal or the section name', async () => {
+        const impl = createToolImpl(ctx.deps);
+        const huge = 'q'.repeat(5000);
+        for (const call of [{ section: 'facts', from: huge }, { section: huge }]) {
+          const err = await impl.read_board(call, ORIGIN.A).then(() => null, (e: Error) => e);
+          expect(err, `${Object.keys(call)} should have been refused`).toBeInstanceOf(Error);
+          expect((err as Error).message.length, 'a refusal grew past any answer this tool can give')
+            .toBeLessThanOrEqual(TOOL_OUTPUT_BUDGET);
+        }
+      });
+
+      // -----------------------------------------------------------------
+      // Adversarial review, 2 Sep. The first version of the paging fix sized
+      // the facts window by arithmetic on RAW character counts — 5 rows of
+      // 200 = 1,305, comfortably under 1,500. Serialised, it is not:
+      // `JSON.stringify` doubles every quote inside a claim, and an advocate
+      // quoting the document (the whole point of filing a fact) pushed the
+      // payload past the budget, where `truncateForTool` cut the JSON
+      // mid-string. That is the ORIGINAL defect of this section, reopened by
+      // its own fix. These two run the real path, `withTruncation` included.
+      it('stays parseable when every claim is full of quotes, at every window', async () => {
+        // Sized to the real failure, not to look realistic: 400 characters so
+        // the 200-char clip actually bites, and enough quoted fragments that
+        // escaping the retained half adds ~45 characters a row. Plain
+        // 400-char facts measured 1,435 of 1,500 at the default window, so the
+        // headroom the old arithmetic left was 65 characters — about a dozen
+        // quotes spread across five rows. A claim that quotes the document is
+        // the ordinary case here, not a stress test.
+        const quoted = 'she said "a" and "b" and "c" and "d" and "e", '.repeat(10);
+        await ctx.exhibits.add({ side: 'A', kind: 'text', name: 'note', bytes: bytes('hello'), filedAt: 't' });
+        for (let i = 0; i < 20; i += 1) ctx.facts.file({ side: 'A', text: quoted, points: { exhibitId: 'E1', locator: {} } });
+        const impl = withTruncation(createToolImpl(ctx.deps));
+        for (const from of [undefined, 1, 3, 8, 16, 20]) {
+          const text = await impl.read_board(from === undefined ? { section: 'facts' } : { section: 'facts', from }, ORIGIN.A) as string;
+          expect(text.length, `from: ${from} ran past the budget`).toBeLessThanOrEqual(TOOL_OUTPUT_BUDGET);
+          expect(text, `from: ${from} was cut by withTruncation`).not.toContain('[truncated at');
+          expect(() => JSON.parse(text), `from: ${from} did not parse`).not.toThrow();
+          expect(JSON.parse(text).rows.length, `from: ${from} returned nothing`).toBeGreaterThan(0);
+        }
+      });
+
+      it('walking `later` still reaches every row exactly once when the rows are big', async () => {
+        // Sized to the real failure, not to look realistic: 400 characters so
+        // the 200-char clip actually bites, and enough quoted fragments that
+        // escaping the retained half adds ~45 characters a row. Plain
+        // 400-char facts measured 1,435 of 1,500 at the default window, so the
+        // headroom the old arithmetic left was 65 characters — about a dozen
+        // quotes spread across five rows. A claim that quotes the document is
+        // the ordinary case here, not a stress test.
+        const quoted = 'she said "a" and "b" and "c" and "d" and "e", '.repeat(10);
+        await ctx.exhibits.add({ side: 'A', kind: 'text', name: 'note', bytes: bytes('hello'), filedAt: 't' });
+        for (let i = 0; i < 20; i += 1) ctx.facts.file({ side: 'A', text: quoted, points: { exhibitId: 'E1', locator: {} } });
+        const impl = withTruncation(createToolImpl(ctx.deps));
+        const seen: string[] = [];
+        let from: number | undefined = 1;
+        for (let guard = 0; from !== undefined && guard < 25; guard += 1) {
+          const out = JSON.parse(await impl.read_board({ section: 'facts', from }, ORIGIN.A) as string);
+          seen.push(...out.rows.map((r: { id: string }) => r.id));
+          from = typeof out.later === 'string' ? Number(out.later.match(/from: (\d+)/)?.[1]) : undefined;
+        }
+        expect(seen).toEqual(Array.from({ length: 20 }, (_, i) => `F${i + 1}`));
+      });
+
+      // The defect underneath the paging one: a seat recorded F8 as SUPPORTED
+      // while saying in its own draft that it could only see part of F8. An
+      // ellipsis at the end of a string is not a strong enough signal when the
+      // string is the claim being judged.
+      it('flags a claim that is still too long for its row, and leaves short ones alone', async () => {
+        await ctx.exhibits.add({ side: 'A', kind: 'text', name: 'note', bytes: bytes('hello'), filedAt: 't' });
+        ctx.facts.file({ side: 'A', text: 'short enough to survive whole', points: { exhibitId: 'E1', locator: {} } });
+        ctx.facts.file({ side: 'B', text: 'y'.repeat(260), points: { exhibitId: 'E1', locator: {} } });
+        const impl = createToolImpl(ctx.deps);
+        const out = JSON.parse(await impl.read_board({ section: 'facts' }, ORIGIN.A) as string);
+        const [whole, cut] = out.rows;
+        expect(whole.text).toBe('short enough to survive whole');
+        expect(whole.textCut).toBeUndefined();
+        expect(cut.textCut).toBe(true);
+      });
+
+      // 200 characters is the number that made this demo's facts survive
+      // whole; the old 100 is what cut F8 in half. Pinned so a later tidy-up
+      // of the clip lengths cannot quietly put it back.
+      it('carries 200 characters of a claim, not 100', async () => {
+        await ctx.exhibits.add({ side: 'A', kind: 'text', name: 'note', bytes: bytes('hello'), filedAt: 't' });
+        ctx.facts.file({ side: 'A', text: 'z'.repeat(300), points: { exhibitId: 'E1', locator: {} } });
+        const impl = createToolImpl(ctx.deps);
+        const out = JSON.parse(await impl.read_board({ section: 'facts' }, ORIGIN.A) as string);
+        // `clip` counts its own ellipsis inside the limit, so a cut claim is
+        // 200 characters ending in one, not 200 characters plus a marker.
+        expect(out.rows[0].text).toHaveLength(200);
+        expect(out.rows[0].text.endsWith('…')).toBe(true);
+        expect(out.rows[0].textCut).toBe(true);
       });
     });
 

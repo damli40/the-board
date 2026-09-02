@@ -18,7 +18,13 @@
 import { PARENT_ORIGIN } from '../config/origins';
 
 /** Set before the final deploy. Empty hides the row; never ship a placeholder. */
-export const VIDEO_URL = '';
+// Typed `string`, not left to infer the literal. Both test files branch on
+// `VIDEO_URL === ''` so they stay green whether or not a video exists yet;
+// without the annotation TypeScript narrows this to its own literal type and
+// calls those comparisons unreachable, which fails `npm run typecheck` while
+// every test still passes. The tests were the thing being protected here, so
+// the constant gives way, not them.
+export const VIDEO_URL: string = 'https://youtu.be/q-K2zzgY3aQ';
 export const REPO_URL = 'https://github.com/damli40/the-board';
 const RUNBOOK_URL =
   `${REPO_URL}#how-a-judge-runs-this-path-c-be-advocate-a-with-your-own-claude-code-or-codex`;

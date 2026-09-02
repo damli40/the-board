@@ -41,7 +41,7 @@ import type { VerdictStore } from '../model/verdict';
 import type { ObjectionStore } from '../model/objections';
 import type { PhaseMachine } from '../webmcp/phases';
 import { Refusal, type ToolRun } from '../webmcp/ledger';
-import { truncateForTool } from '../shared/truncate';
+import { truncateForTool, TOOL_OUTPUT_BUDGET } from '../shared/truncate';
 import { extractPages } from '../pdf/extract';
 import { searchExhibits } from '../search/search';
 
@@ -389,11 +389,82 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
       // refusing it would be this tool being pedantic about spelling rather
       // than about what it is allowed to hand over.
       const section = String(args?.section ?? 'summary').toLowerCase();
-      // The LAST n rows, never the first: the newest state is the state a
-      // party is asking about. `more` says how many were left out, so a
-      // partial view can never pass for a complete one — the same reason
-      // `truncateForTool` refuses to cut silently.
-      const page = <T>(rows: T[], n: number) => ({ rows: rows.slice(-n), more: Math.max(0, rows.length - n) });
+      // Where the window starts, 1-based, counted from the oldest row.
+      // Omitted means the window ENDS at the newest row, which is the
+      // original behaviour and still the right default: the newest state is
+      // the state a party is asking about.
+      //
+      // Fix, 2 Sep 2026. This used to be `rows.slice(-n)` with a `more` count
+      // and NOTHING ELSE — the dropped rows were not reachable by any call an
+      // agent could make. `more` was written to keep a partial view from
+      // passing for a complete one, and it did that honestly, but honesty
+      // about a dead end is still a dead end. Seat 1 hit it live: "the facts
+      // view caps at 7 rows and returns `more: 2` with no page control, so F1
+      // and F2 were never visible to me", and then drafted a verdict saying
+      // so. A panel reading 7 of 9 facts is the exact failure this project
+      // exists to make visible, and it was in the tool the panel reads with.
+      const fromArg = args?.from === undefined ? undefined : Number(args.from);
+      if (fromArg !== undefined && (!Number.isInteger(fromArg) || fromArg < 1)) {
+        // The echoed value is CLIPPED. `Refusal` text goes out through
+        // `ledger.wrap`, which does not run `truncateForTool`, so echoing a
+        // 5,000-character argument sends back a 5,000-character envelope from
+        // the one tool whose whole subject is bounded, parseable answers.
+        throw new Refusal(`from must be a whole number of 1 or more; got ${clip(JSON.stringify(args?.from) ?? 'undefined', 40)}`);
+      }
+      // How many rows fit is MEASURED, not counted. Adversarial review, 2 Sep:
+      // the first version of this fix set the facts window at 5 rows of 200
+      // characters on the arithmetic that 5 × 261 = 1,305 sits under the 1,500
+      // budget. It does not, once the rows are serialised: `JSON.stringify`
+      // doubles every quote, backslash and newline inside a claim, and a fact
+      // that quotes the document — which is exactly what a real advocate files
+      // — pushed the payload past 1,500, where `truncateForTool` cut the JSON
+      // mid-string and the panel got a fragment it could not parse. Measured
+      // at 1,497 of 1,500 for one realistic quoted claim at `from: 3`.
+      //
+      // That was the ORIGINAL defect of this section, closed once already, and
+      // a row count reasoned about on paper is what let it back in. So the
+      // count is now a ceiling, not a promise: rows go in one at a time and
+      // stop at whatever the serialised object will actually hold. `n` still
+      // caps the window so a short record does not return everything at once.
+      const page = <T>(all: T[], n: number) => {
+        const total = all.length;
+        const assemble = (start: number, taken: number) => {
+          const rows = all.slice(start, start + taken);
+          const end = start + rows.length;
+          return {
+            rows,
+            // Both the window and the whole, always, so no caller has to infer
+            // either. `more` is kept for anything already reading it.
+            shown: total === 0 ? 'none' : `${start + 1}-${end} of ${total}`,
+            more: Math.max(0, total - rows.length),
+            ...(start > 0 ? { earlier: `read_board again with from: ${Math.max(1, start - taken + 1)}` } : {}),
+            ...(end < total ? { later: `read_board again with from: ${end + 1}` } : {}),
+          };
+        };
+        // Some margin under the budget: `withTruncation` measures the final
+        // string, and a row added at the boundary must not be the one that
+        // tips it over.
+        const fits = (o: unknown) => JSON.stringify(o).length <= TOOL_OUTPUT_BUDGET - 40;
+        if (total === 0) return assemble(0, 0);
+
+        // No `from`: the window ENDS at the newest row, so rows are added
+        // BACKWARDS from the end. Filling forward here would drop the newest
+        // rows, which is the opposite of what a party asked for.
+        //
+        // With `from`: forward from that row, so walking `later` stays
+        // contiguous — every chain still covers every row exactly once.
+        let best = fromArg === undefined ? assemble(total - 1, 1) : assemble(Math.min(fromArg - 1, total - 1), 1);
+        for (let taken = 2; taken <= n; taken += 1) {
+          const start = fromArg === undefined
+            ? Math.max(0, total - taken)
+            : Math.min(fromArg - 1, Math.max(0, total - 1));
+          const candidate = assemble(start, taken);
+          if (candidate.rows.length < taken) { best = candidate; break; }
+          if (!fits(candidate)) break;
+          best = candidate;
+        }
+        return best;
+      };
       const board = deps.readBoard();
       // A ledger line can carry an origin this file cannot name — the
       // observer's, which is not an origin at all. Say so rather than
@@ -411,10 +482,33 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
           };
         // Each row count is the worst case that fits 1,500 characters with
         // margin, measured against a row of maximum-length clipped fields:
-        // facts 161 chars a row, assessments 167, objections 155, disputes
-        // 113, exhibits 97.
+        // facts 261 chars a row (5 rows = 1,305), assessments 167, objections
+        // 155, disputes 113, exhibits 97. NOT fixed here, and worth knowing:
+        // `assessments.because` still clips at 90 and `verdicts.reasoning` at
+        // 220, so a party weighing an appeal can still be reading a cut-off
+        // version of a seat's grounds. Same class of defect as the facts one
+        // above, one surface over, left alone deliberately rather than
+        // missed.
+        // Fewer rows, much longer text, and an explicit flag when a claim is
+        // still too long for the row. Same fix date and the same live report:
+        // seat 2 recorded F8 as SUPPORTED while saying in its own draft that
+        // "F8's text is truncated in the record at 'of delive…', so I could
+        // only verify the visible portion". A seat matching a quote against a
+        // claim it can only partly see is not a check, whatever it returns,
+        // and an ellipsis is not enough warning when the row's whole purpose
+        // is to be judged. 200 chars clears every fact this demo files; past
+        // that, `textTruncated` says so in a field rather than a glyph.
         case 'facts':
-          return page(facts.all().map((f) => ({ id: f.id, side: f.side, status: f.status, text: clip(f.text, 100) })), 7);
+          return page(facts.all().map((f) => ({
+            id: f.id, side: f.side, status: f.status,
+            text: clip(f.text, 200),
+            // `textCut`, not `textTruncated`: `truncateForTool`'s own sentinel
+            // is the word "truncated", and impl.test.ts greps output for it to
+            // catch JSON cut mid-string. Today the capital T keeps them apart,
+            // which is one case-insensitive check away from a test that fails
+            // for a reason that has nothing to do with what it is testing.
+            ...(f.text.length > 200 ? { textCut: true } : {}),
+          })), 5);
         case 'exhibits':
           return page(exhibits.all().map((e) => ({ id: e.id, side: e.side, kind: e.kind, name: clip(e.name, 40) })), 12);
         // No `quote`. It is verbatim exhibit text — see this body's own
@@ -461,7 +555,9 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
         case 'ledger':
           return page(board.ledger.map(line), 15);
         default:
-          throw new Refusal(`no such section: ${section}; use summary, facts, exhibits, disputes, objections, assessments, verdicts or ledger`);
+          // Clipped for the same reason `from` above is: an echoed argument
+          // must not be able to make a refusal bigger than any answer.
+          throw new Refusal(`no such section: ${clip(section, 40)}; use summary, facts, exhibits, disputes, objections, assessments, verdicts or ledger`);
       }
     },
 

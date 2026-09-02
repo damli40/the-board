@@ -91,6 +91,11 @@ export const READ_BOARD_DESCRIPTION =
 // Chrome's published 150-char parameter-description budget, which
 // tools.test.ts pins. Same list, same instruction, four fewer characters.
 const sectionProp = { type: 'string', description: 'Which part to read: summary (default), facts, exhibits, disputes, objections, assessments, verdicts or ledger. One at a time, so answers stay short.' };
+// The remedy for a windowed section. Before this existed a caller was told
+// how many rows it could not see and given no way to ask for them; a seat
+// drafted a verdict on 7 of 9 facts and said so. Under the 150-char budget
+// tools.test.ts pins, like every other property description here.
+const fromProp = { type: 'integer', description: 'Row to start at, counting from 1. Omit for the newest rows. If a reply names `earlier` or `later`, pass the number it gives.' };
 
 /**
  * The scoped read, declared once and spread into the two specs that carry it:
@@ -108,8 +113,8 @@ const sectionProp = { type: 'string', description: 'Which part to read: summary 
 const READ_BOARD_SCOPED = {
   readOnly: true,
   title: 'Read the board',
-  description: 'Read the public record, one section at a time: summary (phase, what you hold, latest moves), facts, exhibits, disputes, objections, assessments, verdicts, or ledger. Never exhibit text: opening a document is its own receipted step. Read-only; every read is itself recorded.',
-  inputSchema: obj({ section: sectionProp }, [])
+  description: 'Read the public record, one section at a time: summary (phase, what you hold, latest moves), facts, exhibits, disputes, objections, assessments, verdicts, or ledger. A long section comes back one window at a time: the reply says which rows you have out of how many, and gives the `from` number that fetches the rest. Never exhibit text: opening a document is its own receipted step. Read-only; every read is itself recorded.',
+  inputSchema: obj({ section: sectionProp, from: fromProp }, [])
 };
 
 export const TOOLS: ToolSpec[] = [

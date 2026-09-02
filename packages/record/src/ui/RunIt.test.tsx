@@ -57,6 +57,10 @@ describe('RunIt', () => {
 
   it('links the no-setup run at this page own origin, with ?offline=1 and no room code', () => {
     render(<RunIt />);
+    // The judge ARRIVES with a code in the URL — that is the whole demo link.
+    // Without this line jsdom's location never had a `code=` to drop, so the
+    // assertion below could not fail however `offlineHref()` behaved.
+    globalThis.history.replaceState(null, '', '/?code=not-a-real-code');
     const href = screen.getByTestId('run-it-offline-link').getAttribute('href') ?? '';
     expect(href).toBe(`${globalThis.location.origin}${globalThis.location.pathname}?offline=1`);
     expect(href.endsWith('?offline=1')).toBe(true);
@@ -64,6 +68,7 @@ describe('RunIt', () => {
     // offline mode never calls the model proxy, and a code rendered into an
     // href is a code in every screenshot of this page.
     expect(href).not.toMatch(/code=/);
+    expect(href).not.toContain('not-a-real-code');
   });
 
   it('offlineHref falls back to a relative query when there is no location', () => {
@@ -98,11 +103,18 @@ describe('RunIt', () => {
     expect(links).toContain(REPO_URL);
   });
 
-  it('renders no video link at all while VIDEO_URL is empty', () => {
-    expect(VIDEO_URL).toBe('');
+  // Branches on the constant rather than pinning it. Pinned to '' this test
+  // went red the moment the video existed, which is the one day it had to stay
+  // green; either way what it actually guards is the same — the page never
+  // ships a link with no href behind it.
+  it('shows a video link once VIDEO_URL is set, and no video row at all while it is empty', () => {
     render(<RunIt />);
-    expect(screen.queryByText(/video/i)).toBeNull();
     const links = screen.getAllByRole('link').map((a) => a.getAttribute('href') ?? '');
+    if (VIDEO_URL === '') {
+      expect(screen.queryByText(/video/i)).toBeNull();
+    } else {
+      expect(links).toContain(VIDEO_URL);
+    }
     expect(links.every((href) => href.length > 0)).toBe(true);
   });
 });

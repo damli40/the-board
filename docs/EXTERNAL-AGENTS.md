@@ -192,8 +192,9 @@ for that one run. Your `~/.codex/config.toml` is never touched and Codex keeps i
 copied sign-in is deleted when the run ends.
 
 Then ask Advocate A whether to spend the appeal, and end the case yourself: scroll to "The one
-control no agent can reach," type a name, press `[ confirm ]`. The phase rail labels this step
-*Hand to a person*; if you do not see that button, the confirm bar is reachable directly.
+control no agent can reach," type a name, press `[ confirm ]`. The phase rail has no advance button
+here, deliberately: nothing on the rail moves a case into CONFIRMED. It offers *Sign it below*, which
+scrolls to the confirm bar and focuses the name field without touching the case.
 
 ## What the phase change actually does
 

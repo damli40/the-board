@@ -41,7 +41,16 @@ import type { Phase } from '../model/types';
 const PHASE_META: Record<Phase, { label: string; sub: string; advanceLabel?: string }> = {
   FILING: { label: 'Filing', sub: 'advocates put their case in', advanceLabel: 'Open review' },
   REVIEW: { label: 'Review', sub: 'seats read both cases', advanceLabel: 'Ask the seats to draft' },
-  VERDICT: { label: 'Draft verdict', sub: 'seats write, nothing is in force', advanceLabel: 'Hand to a person' },
+  // No `advanceLabel` here, deliberately. `NEXT_PHASE` (webmcp/phases.ts) has
+  // no VERDICT entry, because the move into CONFIRMED is a person's signature
+  // and never a phase button — so the advance control below does not render in
+  // this phase at all, and any label written on this line is dead
+  // configuration that cannot reach the screen. This line used to read
+  // `advanceLabel: 'Hand to a person'`, which looked like a real control in
+  // every document that quoted this table, and sent people hunting on the rail
+  // for a button that cannot exist. What renders in that slot now is the sign
+  // link below: it moves the page, not the phase.
+  VERDICT: { label: 'Draft verdict', sub: 'seats write, nothing is in force' },
   CONFIRMED: { label: 'Confirmed', sub: 'a person signed it' },
 };
 
@@ -54,6 +63,26 @@ export function PhaseRail({ phase, onAdvance }: PhaseRailProps) {
   const activeIndex = PHASES.indexOf(phase);
   const next = NEXT_PHASE[phase];
 
+  // The one thing that stands in the advance button's slot at VERDICT, where
+  // there is no next phase to advance to. It moves the PAGE, never the case:
+  // `confirm` in ConfirmBar is still the only thing that reaches CONFIRMED,
+  // and it is still a person pressing it. Without this the rail simply went
+  // quiet in the last phase, which read as a broken control rather than as
+  // the deliberate absence of one.
+  //
+  // A DOM lookup rather than a callback prop, on purpose: the whole action is
+  // "scroll this page, focus that input", which is a DOM operation however it
+  // is routed, and threading it up through App.tsx would add a prop that can
+  // only ever do this one thing. `preventScroll` because the smooth scroll is
+  // already running — focusing without it snaps the page instantly and undoes
+  // the animation.
+  function goToSignature() {
+    const input = document.getElementById('confirm-bar-name-input');
+    const target = input ?? document.querySelector('[data-testid="confirm-bar"]');
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (input instanceof HTMLInputElement) input.focus({ preventScroll: true });
+  }
+
   return (
     <div
       data-testid="phase-rail"
@@ -61,7 +90,20 @@ export function PhaseRail({ phase, onAdvance }: PhaseRailProps) {
     >
       <div
         data-testid="phase-ribbon"
-        style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', flex: '1 1 640px' }}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          // Basis is 560px, not 640px, and that 80px is load-bearing. The rail
+          // wraps, and the advance button's label changes length by phase:
+          // 'Open review' measures 147px, 'Ask the seats to draft' 208px. At an
+          // 843px viewport a 640px basis leaves room for the first and not the
+          // second, so pressing 'Open review' in the top-right corner moved the
+          // next control 654px left and 101px down onto a row of its own, under
+          // a cursor that had not moved. Measured on the deployed record, 2 Sep
+          // 2026. 560 + the button's 216px minimum + 42px of wrapper padding =
+          // 818px, so every phase's control keeps the ribbon's row and corner.
+          flex: '1 1 560px',
+        }}
       >
         {PHASES.map((p, i) => {
           const meta = PHASE_META[p];
@@ -127,8 +169,40 @@ export function PhaseRail({ phase, onAdvance }: PhaseRailProps) {
           );
         })}
       </div>
-      {next && (
+      {(next || phase === 'VERDICT') && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '10px clamp(16px,2.6vw,40px) 10px 20px' }}>
+          {!next ? (
+            <button
+              type="button"
+              data-testid="go-to-signature"
+              onClick={goToSignature}
+              className="tb-focus-amber"
+              style={{
+                all: 'unset',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+                minHeight: 44,
+                // Same 216px box as the advance button it replaces, so the rail
+                // does not reflow on the way into this phase.
+                minWidth: 216,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '11px 18px',
+                color: 'var(--tb-ink)',
+                fontFamily: 'var(--font-body, Archivo), sans-serif',
+                fontSize: 14,
+                fontWeight: 600,
+                textDecoration: 'underline',
+                textUnderlineOffset: 3,
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" style={{ flex: 'none' }} aria-hidden="true">
+                <path d="M12 5v14M6 13l6 6 6-6" />
+              </svg>
+              <span>Sign it below</span>
+            </button>
+          ) : (
           <button
             type="button"
             data-testid="advance-phase"
@@ -139,8 +213,15 @@ export function PhaseRail({ phase, onAdvance }: PhaseRailProps) {
               cursor: 'pointer',
               boxSizing: 'border-box',
               minHeight: 44,
+              // Sized to the longest label ('Ask the seats to draft', 208px) so
+              // the box is identical in every phase and the centre of the
+              // control does not drift between one click and the next.
+              // `space-between` pins the arrow to the right edge of that fixed
+              // box instead of stranding it mid-button on the shorter labels.
+              minWidth: 216,
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'space-between',
               gap: 12,
               background: 'var(--tb-ink)',
               color: 'var(--tb-ground)',
@@ -156,6 +237,7 @@ export function PhaseRail({ phase, onAdvance }: PhaseRailProps) {
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>
           </button>
+          )}
         </div>
       )}
     </div>

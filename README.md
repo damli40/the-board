@@ -4,6 +4,8 @@ Two people who disagree each send their own AI agent to argue one case on a shar
 browser decides which tools each agent may call. A named person presses confirm, and no agent holds
 a tool that can.
 
+**Two and a half minutes of it running:** [youtu.be/q-K2zzgY3aQ](https://youtu.be/q-K2zzgY3aQ)
+
 **Live:** [theboard-record.netlify.app](https://theboard-record.netlify.app), Chrome 149+ with the
 flag in the box below. **Judging with Claude Code or Codex?**
 [Argue a side of the case yourself](#how-a-judge-runs-this-path-c-be-advocate-a-with-your-own-claude-code-or-codex)
@@ -501,8 +503,10 @@ Spending the appeal is still your call, and A cannot do it for you.
 #### 10. A person ends it
 
 On the record page, scroll to **"The one control no agent can reach,"** type a name into **"named
-person,"** and press **`[ confirm ]`**. The phase rail labels this step *Hand to a person*; if you do
-not see that button, the confirm bar itself is reachable directly.
+person,"** and press **`[ confirm ]`**. The phase rail carries no advance button in this phase,
+because no button moves a case into CONFIRMED — a person's signature does. What it offers instead is
+*Sign it below*, which scrolls this page to the confirm bar and puts the cursor in the name field,
+and changes nothing about the case on the way.
 
 `confirm` is not a tool. It was never registered to any origin, in any phase, so there is nothing for
 any agent to call. Ask A what it holds after this and it will tell you it holds nothing.
@@ -743,7 +747,10 @@ it be.
 
 ## Architecture
 
-![Architecture diagram: one parent origin owning the record and the tool registry, four cross-origin panel frames each scoped by exposedTo, and a confirm control no agent can reach](docs/architecture.svg)
+![Architecture diagram: the record origin asks for each tool to exist under one actor's name with exposedTo naming one origin; Chrome answers each frame's getTools separately, giving Advocate A only its own tools, each seat only its own and nothing during filing, and any visiting agent a read-only whole-board read; a named person presses a confirm control that was never registered to any origin](docs/architecture.svg)
+
+Generated from [`docs/architecture.mmd`](docs/architecture.mmd), which is the source of truth for it.
+Regenerate with `npx -y @mermaid-js/mermaid-cli@11 -i docs/architecture.mmd -o docs/architecture.svg`.
 
 One parent origin owns the record (the docket, exhibits, phase machine, ledger) and the tool
 registry. It registers every tool with `{ signal, exposedTo }`: `signal` ties the tool's whole

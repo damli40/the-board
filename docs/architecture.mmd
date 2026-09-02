@@ -1,0 +1,75 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#191919","primaryColor":"#232120","primaryTextColor":"#f3f2f2","primaryBorderColor":"#6c6763","lineColor":"#9a938c","secondaryColor":"#1d1b19","tertiaryColor":"#1d1b19","clusterBkg":"#141313","clusterBorder":"#4a4542","fontFamily":"Archivo, system-ui, sans-serif","fontSize":"15px","edgeLabelBackground":"#232120"},"flowchart":{"curve":"basis","nodeSpacing":45,"rankSpacing":70}} }%%
+flowchart TB
+  %% The Board, architecture as built, 2 September 2026.
+  %% The record ASKS for a tool to exist at one named origin. The browser ANSWERS
+  %% the question "what may this frame see". The application declares who asks for
+  %% what (TOOLS[].actors in webmcp/tools.ts); it does not decide who gets it, and
+  %% it cannot, because Chrome computes the answer against exposedTo at the moment
+  %% a frame calls getTools. Tool names and phase windows come from that same file.
+  %% Render: npx -y @mermaid-js/mermaid-cli@11 -i docs/architecture.mmd -o docs/architecture.svg
+
+  subgraph outside["Outside the browser · a judge brings their own agent"]
+    direction LR
+    AGENT["<b>Claude Code</b>, or <b>Codex</b><br/><i>you supply it. This project never runs it.</i>"]
+    BRIDGE["<b>external-agent bridge</b><br/><i>an MCP server, no provider key</i><br/>MCP over stdio: tools/list · tools/call"]
+    AGENT --> BRIDGE
+  end
+
+  BRIDGE == "raw CDP into ONE frame, chosen by --actor.<br/><i>Playwright's connectOverCDP reports cross-origin<br/>iframes with empty URLs on Chrome 152</i>" ==> parties
+
+  subgraph rec["theboard-record.netlify.app · owns the case, and nothing else"]
+    direction TB
+    CASE["<b>The case file</b><br/>exhibits · facts · disputes · objections · assessments · verdicts"]
+    PHASE["<b>Phase machine</b> · FILING → REVIEW → VERDICT → CONFIRMED<br/><i>spend_appeal sends VERDICT back to REVIEW, once per side</i>"]
+    LEDGER["<b>Ledger tape</b><br/>every executeTool from any frame below lands here<br/><i>by origin, ok or refused. A call for a tool the frame never<br/>held is refused before it arrives, so it leaves no row.</i>"]
+    REG["<b>Tool registry</b> · registerTool spec, signal, <b>exposedTo</b><br/>one AbortController per lifetime<br/><i>abort is withdrawal: WebMCP has no unregisterTool.<br/>A phase change aborts lifetimes. So does spending an appeal,<br/>which is an abort with no phase change behind it.</i>"]
+    CASE --- PHASE
+    CASE --- LEDGER
+    PHASE --> REG
+  end
+
+  REG == "asks for each tool to exist under one actor's name,<br/>exposedTo naming ONE origin" ==> CHROME
+
+  CHROME{{"<b>CHROME decides</b><br/><i>Each frame asks getTools fromOrigins. The BROWSER answers it,<br/>against exposedTo on the site's own registration.<br/>Not this application, which never sees the question.</i>"}}
+
+  CHROME == "answers A with a__* only, and B with b__* only<br/>FILING: file_exhibit · file_fact · concede · dispute · open_exhibit<br/>FILING→VERDICT: read_board · REVIEW: object · VERDICT: spend_appeal" ==> parties
+  CHROME == "answers each seat with its own, and with NOTHING during FILING<br/>REVIEW→VERDICT: open_exhibit · extract_text · search_exhibits<br/>read_board · record_assessment · VERDICT: cite · draft_verdict" ==> seats
+  CHROME == "answers anyone at all: read_board" ==> OBS
+
+  subgraph parties["The two sides · one agent each, running in its own origin"]
+    direction TB
+    AB["<b>ADVOCATE A</b> · theboard-a  ·  <b>ADVOCATE B</b> · theboard-b<br/><i>iframe allow=tools</i>"]
+    PATHS["<i>Three ways a panel gets its moves: a fixed script in the page with<br/>no model at all, this project's own model proxy, or your agent over<br/>the bridge. The tool boundary is identical in all three.</i>"]
+    AB --- PATHS
+  end
+
+  subgraph seats["The two readers · neither is shown the other's work"]
+    direction TB
+    SS["<b>SEAT 1</b> · theboard-seat1  ·  <b>SEAT 2</b> · theboard-seat2"]
+    SEATNOTE["<i>Each seat reads only its own assessments and its own draft.<br/>That one is an app-side filter inside read_board, NOT the browser.<br/>The origin partition above it is the browser's.</i>"]
+    SS --- SEATNOTE
+  end
+
+  OBS["<b>Any visiting agent</b> · Chrome's own, an extension, anything<br/><i>read_board only, read-only, and it sees the WHOLE board.<br/>Registered with NO origin named. Deliberate, and disclosed.<br/>Its reads land on the tape like everyone else's.</i>"]
+
+  CONF["<b>confirm · return_with_note</b> · never registered to any origin, in any phase<br/><i>not withheld, not refused. Never written down.</i><br/>Writes the outcome straight to the case, not through a tool, so it leaves no tape row either."]
+  PERSON(["<b>A named person</b><br/><i>types a name and presses it, on this page</i>"])
+  PERSON == "the only path into CONFIRMED. No agent holds one." ==> CONF
+
+  classDef recordBox fill:#1d1b19,stroke:#e5aa5e,stroke-width:1.5px,color:#f3f2f2
+  classDef panelBox fill:#232120,stroke:#8a837d,stroke-width:1.5px,color:#f3f2f2
+  classDef gate fill:#3d2c11,stroke:#eea33d,stroke-width:3px,color:#ffffff
+  classDef human fill:#102c20,stroke:#3f9d6b,stroke-width:2.5px,color:#ffffff
+  classDef never fill:#3a1410,stroke:#ec3013,stroke-width:3px,color:#ffffff
+  classDef ext fill:#1b1b24,stroke:#8f97c3,stroke-width:1.5px,color:#f3f2f2
+  classDef wide fill:#2b2410,stroke:#c9a227,stroke-width:2px,color:#f3f2f2,stroke-dasharray: 6 4
+  classDef note fill:#171716,stroke:#3a3634,stroke-width:1px,color:#a9a29c
+
+  class CASE,PHASE,REG,LEDGER recordBox
+  class AB,SS panelBox
+  class CHROME gate
+  class PERSON human
+  class CONF never
+  class AGENT,BRIDGE ext
+  class OBS wide
+  class SEATNOTE,PATHS note

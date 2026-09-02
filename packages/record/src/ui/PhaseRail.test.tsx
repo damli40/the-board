@@ -58,6 +58,70 @@ describe('PhaseRail', () => {
     expect(screen.queryByTestId('advance-phase')).toBeNull();
   });
 
+  // -----------------------------------------------------------------
+  // 2 Sep 2026, the clerk's controls. Two separate defects, both found by
+  // driving the deployed page rather than by reading this file.
+  //
+  // One: the advance button MOVED. 'Open review' measures 147px and 'Ask the
+  // seats to draft' 208px, and at an 843px viewport only the first fit beside
+  // a 640px ribbon basis — so pressing the first control sent the second one
+  // 654px left and 101px down onto a row of its own, under a cursor that had
+  // not moved. Geometry is not testable here (jsdom lays nothing out), so
+  // what these pin is the two style decisions that hold the box still.
+  //
+  // Two: at VERDICT the slot was simply empty, which reads as a control that
+  // stopped working rather than as one that was never supposed to exist.
+  it('gives the advance button a fixed box, so it does not move when the label changes length', () => {
+    const { rerender } = render(<PhaseRail phase="FILING" onAdvance={() => {}} />);
+    const filing = screen.getByTestId('advance-phase');
+    expect(filing.style.minWidth).toBe('216px');
+    expect(filing.style.justifyContent).toBe('space-between');
+    rerender(<PhaseRail phase="REVIEW" onAdvance={() => {}} />);
+    const review = screen.getByTestId('advance-phase');
+    expect(review.style.minWidth).toBe('216px');
+    expect(review).toHaveTextContent('Ask the seats to draft');
+  });
+
+  it('gives the ribbon a basis narrow enough that the longest label still fits beside it', () => {
+    render(<PhaseRail phase="REVIEW" onAdvance={() => {}} />);
+    // 560 + the button's 216px minimum + 42px of wrapper padding = 818px, so
+    // the control keeps the ribbon's row at the 843px viewport this is filmed
+    // at. Raising this back to 640 silently reintroduces the jump.
+    expect(screen.getByTestId('phase-ribbon').style.flex).toContain('560px');
+  });
+
+  it('offers a way down to the signature at VERDICT, where no advance button can exist', () => {
+    render(<PhaseRail phase="VERDICT" onAdvance={() => {}} />);
+    expect(screen.queryByTestId('advance-phase')).toBeNull();
+    expect(screen.getByTestId('go-to-signature')).toHaveTextContent('Sign it below');
+  });
+
+  it('the sign link moves the page and never the phase', () => {
+    const onAdvance = vi.fn();
+    const input = document.createElement('input');
+    input.id = 'confirm-bar-name-input';
+    document.body.appendChild(input);
+    const scrollIntoView = vi.fn();
+    input.scrollIntoView = scrollIntoView;
+
+    render(<PhaseRail phase="VERDICT" onAdvance={onAdvance} />);
+    fireEvent.click(screen.getByTestId('go-to-signature'));
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(input);
+    // The whole point: confirm is still the only thing that reaches CONFIRMED.
+    expect(onAdvance).not.toHaveBeenCalled();
+    input.remove();
+  });
+
+  it('shows the sign link only at VERDICT, not in the phases that have a real button', () => {
+    for (const phase of ['FILING', 'REVIEW', 'CONFIRMED'] as const) {
+      const { unmount } = render(<PhaseRail phase={phase} onAdvance={() => {}} />);
+      expect(screen.queryByTestId('go-to-signature'), `${phase} should not offer it`).toBeNull();
+      unmount();
+    }
+  });
+
   it('keeps the phase-ribbon container testid the deleted PhaseRibbon used', () => {
     render(<PhaseRail phase="FILING" onAdvance={() => {}} />);
     expect(screen.getByTestId('phase-ribbon')).toBeInTheDocument();
