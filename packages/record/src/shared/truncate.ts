@@ -1,5 +1,5 @@
 // Chrome publishes a 1.5K-character budget for WebMCP tool output
-// (see CLAUDE.md §2, "Character budgets"). `extract_text` and `search_exhibits`
+// (see docs/WEBMCP-NOTES.md §2, "Character budgets"). `extract_text` and `search_exhibits`
 // (Task 9) both call this before returning — a single PDF page routinely runs
 // 2-4K characters, so this is not an edge case, it is the common case.
 //

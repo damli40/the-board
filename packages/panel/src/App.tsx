@@ -590,6 +590,18 @@ export function App() {
             that this line must not depend on anything else landing; it
             must not depend on WebMCP being available either. */}
         <OriginLine />
+        {/* Fix plan item 1c: a visitor who lands on a panel origin directly, or
+            who opens the record without the flag, used to get one status string
+            and no way back. This says which product this frame belongs to and
+            where to go, and names the flag, so the frame explains itself
+            instead of reading as a broken deploy. `PARENT_ORIGIN` rather than a
+            literal, so the dev build points at localhost:8080. */}
+        <p style={{ margin: 0, padding: '16px 16px 0', lineHeight: 1.5 }}>
+          This frame is one of The Board's four agent panels. It runs inside the record page and needs
+          WebMCP, which this browser has switched off. Open{' '}
+          <a href={PARENT_ORIGIN} style={{ color: '#f3f2f2' }}>the record page</a>{' '}
+          in Chrome 149 or later with <code>chrome://flags/#enable-webmcp-testing</code> enabled.
+        </p>
         <p style={{ margin: 0, padding: 16, color: 'var(--tb-amber)' }}>{status.reason}</p>
       </div>
     );

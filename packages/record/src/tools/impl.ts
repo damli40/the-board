@@ -533,7 +533,7 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
       };
     },
 
-    // readOnly: true in the schema (writes nothing) — but per CLAUDE.md §2,
+    // readOnly: true in the schema (writes nothing) — but per docs/WEBMCP-NOTES.md §2,
     // it MUST refuse on an exhibit this seat has not opened, mirroring the
     // read-receipt chain `record_assessment` already enforces. Text is
     // already extracted at filing time (file_exhibit calls extractPages
@@ -659,7 +659,7 @@ export function createToolImpl(deps: ToolImplDeps): Record<string, ToolRun> {
     // Fix round 1, MINOR 4 (adversarial review): `spendAppeal(side)` aborts
     // the exact AbortController THIS call is registered under — this body
     // is running as an execution of the `spend_appeal` tool whose signal
-    // is `appealA`/`appealB`'s own. CLAUDE.md §1: Chrome 152 and earlier
+    // is `appealA`/`appealB`'s own. docs/WEBMCP-NOTES.md §1: Chrome 152 and earlier
     // cancel an execution already in flight when its registration signal
     // aborts; 153+ does not; we must not write logic that depends on
     // either. So the mutation is deferred past a MACROTASK boundary, not

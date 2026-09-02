@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TOOLS } from './tools';
 
-// Chrome's published budgets (CLAUDE.md section 2): tool name <=30 chars,
+// Chrome's published budgets (docs/WEBMCP-NOTES.md §2): tool name <=30 chars,
 // tool description <=500 chars, parameter description <=150 chars. Missing
 // parameter descriptions are Chrome's named #1 cause of wrong-argument calls,
 // so every schema property must carry one — recursively, since `locator` is

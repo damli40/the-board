@@ -22,3 +22,6 @@ docs/superpowers/
 # A README citing a file the repo does not contain is a dead link on the one
 # page a stranger reads first, so this one ships by exception.
 !docs/EXTERNAL-AGENTS.md
+# The WebMCP working notes the source comments cite by section. Sections 1 to
+# 3 of the internal rules file, published so a "see §1" in a comment resolves.
+!docs/WEBMCP-NOTES.md

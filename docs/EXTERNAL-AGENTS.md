@@ -250,6 +250,7 @@ the Chrome instance attached at `--cdp`.
 | `the record's machinery failed (this is not a refusal): …` | A genuine crash inside the record, not a boundary decision. | The cause is on the record page's ledger row for that call. |
 | `API Error: … safeguards flagged this message … [reasoning_extraction]` | Your account's default model refused the seats' verdict prompt on 1 Sep 2026. | Re-run with `BOARD_AGENT_MODEL=opus`. |
 | `user cancelled MCP tool call` (Codex) | Codex's own approval policy stopped a state-changing call. This is not a Board refusal. | Approve the call when Codex asks, or add the `default_tools_approval_mode` line from section 3 to that server's block. The scripts already carry it in the config they write. |
+| Your agent describes facts or exhibits the page does not show | You reloaded the record page, which resets the case to the seeded five exhibits and seven facts. | Start a fresh agent session. The bridge warns once about this, but only for a client that keeps one bridge process alive across the run (Claude Code does; the Codex desktop app starts a new one per session). |
 
 ## What is verified, and what is not
 
@@ -287,11 +288,15 @@ origin, with Codex's sandbox left on. The `-c mcp_servers.<name>` command and ar
 expose the tools at all, which is why the scripts write a config file into a temporary `CODEX_HOME`
 instead.
 
-Two caveats remain. Neither is about the bridge:
+**The Codex desktop app, 2 Sep 2026.** In one desktop-app session, after the operator clicked
+"Open review" on the record, Codex answered:
+"The phase is REVIEW. I currently hold: read_board, object." No restart, no new session.
+Both coding agents this file names act on `tools/list_changed` live: Claude Code 2.1.252 on 1 Sep,
+in both directions; the Codex desktop app on 2 Sep, for the withdrawal. Not watched in Codex: the second direction, every tool gone after a person confirms.
 
-- **The Codex desktop app was not used.** Everything above was the `codex` CLI. The app reads the
-  same `~/.codex/config.toml`, so a hand-registered server should behave the same way there. That has
-  not been run.
-- **Whether an interactive Codex session refreshes its tool list mid-phase is unchecked.** Claude
-  Code 2.1.252 was verified for `tools/list_changed` in both directions on 1 Sep 2026; Codex was not.
-  Assume you may need to restart a Codex session after a phase moves.
+**One caveat remains, and it is about reloads.** A reload of the record page resets the case to the
+seeded five exhibits and seven facts. `packages/external-agent/src/browser.mjs` remembers the frame's
+`performance.timeOrigin` and refuses once when it changes, but that memory lives in the bridge
+process. The Codex desktop app starts a new bridge process per session and leaves old ones running, so a fresh session has no baseline and never warns. Start a
+fresh agent session after any reload. Claude Code keeps one bridge process for the whole run, so its
+warning fires.

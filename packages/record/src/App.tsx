@@ -28,6 +28,7 @@ import { createToolImpl } from './tools/impl';
 import { loadScenario } from './scenario';
 import { ACTORS, ACTOR_LABEL } from './ui/theme';
 import { Masthead } from './ui/Masthead';
+import { RunIt } from './ui/RunIt';
 import { PhaseRail } from './ui/PhaseRail';
 import { RefusalBanner } from './ui/RefusalBanner';
 import { DoublePrompt } from './ui/DoublePrompt';
@@ -39,6 +40,7 @@ import { ConfirmBar } from './ui/ConfirmBar';
 import { AgentCard, deriveAgentState, type AgentCardState } from './ui/AgentCard';
 import { Setup } from './ui/Setup';
 import { Beliefs } from './ui/Beliefs';
+import { Unsupported } from './ui/Unsupported';
 import { modelConfigDeliveries, type AgentConfigs } from './model/agentConfig';
 
 /**
@@ -594,13 +596,7 @@ export function App() {
   }
 
   if (!status.available) {
-    return (
-      <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono p-6 flex items-center justify-center">
-        <div className="max-w-lg border border-amber-700 bg-amber-950/20 rounded p-4">
-          <p className="text-amber-300 text-sm">{status.reason}</p>
-        </div>
-      </div>
-    );
+    return <Unsupported reason={status.reason} />;
   }
 
   return (
@@ -615,6 +611,17 @@ export function App() {
       */}
       <header>
         <Masthead fixedExhibits={fixedExhibits} />
+        {/*
+          The two run paths, directly under the masthead's meta rows and above
+          the phase rail. A judge arrives with the flag already on, so
+          `Unsupported.tsx` never renders for them and everything it says about
+          driving this with your own coding agent is invisible to the one
+          person it was written for. Both paths already worked; neither was
+          offered on this page. Kept to two short columns on purpose — see
+          RunIt.tsx's own header — because pushing the phase rail below the
+          fold would trade one missed thing for another.
+        */}
+        <RunIt />
         <PhaseRail phase={engine.phaseMachine.phase} onAdvance={advancePhase} />
         <RefusalBanner failures={registrationFailures} />
         <DoublePrompt onSend={broadcastPrompt} />

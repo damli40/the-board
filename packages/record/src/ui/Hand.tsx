@@ -31,7 +31,7 @@
 // Also Minor: the sort below used `localeCompare`, which depends on the
 // runtime's own locale/ICU build; `ui/Manifest.tsx`'s merged list sorts by a
 // bare code-unit comparator for the same reason (matches Chrome's own
-// `getTools()` ordering, CLAUDE.md sec. 1) and this strip now sits directly
+// `getTools()` ordering, docs/WEBMCP-NOTES.md §1) and this strip now sits directly
 // beneath that grid, so the two lists of tool names use the same ordering
 // rule rather than two different ones side by side.
 import { useEffect, useRef, useState } from 'react';
@@ -131,7 +131,7 @@ export function Hand({ manifest }: { manifest: Manifest }) {
   const accent = ACTOR_ACCENT[manifest.actor];
   // Code-unit comparator, not `localeCompare` — matches `ui/Manifest.tsx`'s
   // merged-list sort and Chrome's own `getTools()` ASCII ordering
-  // (CLAUDE.md sec. 1), so this strip and the manifest grid directly above
+  // (docs/WEBMCP-NOTES.md §1), so this strip and the manifest grid directly above
   // it never disagree on how two tool names order.
   const cards = [...manifest.granted].sort((a, b) => (a.tool < b.tool ? -1 : a.tool > b.tool ? 1 : 0));
   const slots = useVanishingSlots(cards);

@@ -78,11 +78,11 @@ declare global {
        * `registerTool` and `getTools` but not `executeTool` yet, even though
        * it is part of the shipping Chrome API this project targets. This
        * augments the ambient global namespace the package already declares
-       * instead of casting to `any` at every call site (CLAUDE.md §1: "use
+       * instead of casting to `any` at every call site (docs/WEBMCP-NOTES.md §1: "use
        * webmcp-types instead of `(document as any)` casts, wherever
        * practical").
        *
-       * The signature itself IS the sharp edge from CLAUDE.md §1: the tool
+       * The signature itself IS the sharp edge from docs/WEBMCP-NOTES.md §1: the tool
        * OBJECT returned by getTools(), and arguments as a JSON STRING — not
        * a name, and not an object (an object stringifies to
        * '[object Object]' and the tool receives nothing).
@@ -97,7 +97,7 @@ declare global {
 }
 
 /**
- * Quoted verbatim on camera — CLAUDE.md §3: "The panel system instruction
+ * Quoted verbatim on camera — docs/WEBMCP-NOTES.md §3: "The panel system instruction
  * must live in the repo and be quotable. A judge who read Chrome's security
  * page will look for it." This is the guardrail Chrome calls "acknowledge
  * untrustedContentHint in system instructions": it names the annotation, and
@@ -417,7 +417,7 @@ async function askModel(
 
 function getModelContext(): WebMCP.ModelContext | undefined {
   // Feature-detect document.modelContext ?? navigator.modelContext
-  // (CLAUDE.md §1) rather than assuming either exists.
+  // (docs/WEBMCP-NOTES.md §1) rather than assuming either exists.
   const doc = (globalThis as { document?: Document }).document;
   const nav = (globalThis as { navigator?: Navigator }).navigator;
   return doc?.modelContext ?? nav?.modelContext;
@@ -446,7 +446,7 @@ export async function getGrantedTools(): Promise<WebMCP.RegisteredTool[]> {
   // cross-origin iframe under the record origin, so the page-owned tools
   // registered there require fromOrigins — omitting it silently returns
   // [], and the agent reports "no tools" instead of refusing, which reads
-  // as a bug on camera (CLAUDE.md §1).
+  // as a bug on camera (docs/WEBMCP-NOTES.md §1).
   return mc.getTools({ fromOrigins: [PARENT_ORIGIN] });
 }
 
@@ -647,7 +647,7 @@ export async function runAgentTurn(goal: string, demo: DemoContext = {}): Promis
     // cross-origin iframe under the record origin, so the page-owned tools
     // registered there require fromOrigins — omitting it silently returns
     // [], and the agent reports "no tools" instead of refusing, which reads
-    // as a bug on camera (CLAUDE.md §1).
+    // as a bug on camera (docs/WEBMCP-NOTES.md §1).
     tools = await mc.getTools({ fromOrigins: [PARENT_ORIGIN] });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -781,7 +781,7 @@ export async function runAgentTurn(goal: string, demo: DemoContext = {}): Promis
       try {
         // Chrome's executeTool takes the RegisteredTool OBJECT from
         // getTools() and arguments as a JSON STRING — not a name, and not
-        // an object (CLAUDE.md §1).
+        // an object (docs/WEBMCP-NOTES.md §1).
         const result = await mc.executeTool(tool, JSON.stringify(call.arguments ?? {}));
         // FINISH TASK: `result` now carries the record's own envelope
         // (ledger.ts's `Ledger.wrap`) whenever the call resolved at all —

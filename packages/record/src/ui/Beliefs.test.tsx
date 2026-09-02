@@ -67,7 +67,7 @@ describe('Beliefs', () => {
     expect(items[3]).toContain('two sides disagree');
   });
 
-  // CLAUDE.md sec. 3's own closing paragraph — quoted there and nowhere
+  // docs/WEBMCP-NOTES.md §3's own closing paragraph — quoted there and nowhere
   // else in this file's sibling App.tsx; this is its one home on the page.
   it('renders the honest-limit line, set apart from the four claims', () => {
     render(<Beliefs />);

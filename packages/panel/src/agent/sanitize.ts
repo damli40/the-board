@@ -2,7 +2,7 @@
 // before that text reaches a model — and it DOES fence and redact, because
 // the string is about to be handed to something that can act on
 // instructions embedded in it. This is Chrome's "spotlighting" guardrail
-// (delimit untrusted content; see CLAUDE.md §3): cheap, token-efficient
+// (delimit untrusted content; see docs/WEBMCP-NOTES.md §3): cheap, token-efficient
 // fencing rather than the base64 upgrade, which Chrome itself frames as the
 // next step, not a day-one requirement.
 //
@@ -18,7 +18,7 @@
 // that holds is Task 4: `exposedTo` scoping tools to an origin, enforced by
 // the browser. Sanitising text cannot expand or restrict what a seat may
 // do — a fooled seat still cannot call a tool it was never granted, and
-// still gets refused when it cites a fact it never assessed (CLAUDE.md §3,
+// still gets refused when it cites a fact it never assessed (docs/WEBMCP-NOTES.md §3,
 // "the layered claim"). What this file's fence guarantees is narrower and
 // purely local: that text the other side wrote cannot pose as the fence's
 // own boundary and relabel itself trusted. Breaking THAT guarantee — the

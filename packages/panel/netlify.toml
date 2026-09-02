@@ -12,14 +12,14 @@
   command = "npm run build"
   publish = "dist"
 
-# This site's build base is packages/panel (see docs/evidence/deploy.md), so
+# This site's build base is packages/panel (the site's base directory is set in the Netlify dashboard), so
 # every path below is written relative to that base, not the repo root.
 #
 # The functions directory used to be written as "../../netlify/functions",
 # pointing at a shared functions folder at the repo root. `netlify build --dry`
 # rejects that outright: "Configuration property functionsDirectory ... must
-# be inside the repository root directory" (verified against the installed
-# netlify-cli, see docs/evidence/deploy.md). Netlify treats the folder holding
+# be inside the repository root directory" (verified
+# against netlify-cli 26.1.0). Netlify treats the folder holding
 # netlify.toml as that boundary, so no relative path may climb above it, at
 # any depth. The fix is to keep the function every panel site needs inside
 # this folder's own tree: packages/panel/netlify/functions/model-proxy.ts.

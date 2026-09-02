@@ -111,7 +111,7 @@ const NEVER_TOOLS = new Set(NEVER_GRANTED);
  * is what the manifest tests assert and what the camera needs. The
  * comparator is a bare code-unit comparison (not `localeCompare`, which
  * depends on the runtime's own locale/ICU build) so it matches Chrome's own
- * `getTools()` ordering exactly (CLAUDE.md sec. 1) and cannot reshuffle
+ * `getTools()` ordering exactly (docs/WEBMCP-NOTES.md §1) and cannot reshuffle
  * between environments.
  */
 function rows(manifest: ManifestLike): Row[] {

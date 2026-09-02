@@ -24,7 +24,7 @@
 //   person. `Beliefs.test.tsx` pins that as a real assertion, not a claim in
 //   a comment nobody checks.
 //
-// The honest-limit line is CLAUDE.md sec. 3's own closing paragraph, quoted
+// The honest-limit line is docs/WEBMCP-NOTES.md §3's own closing paragraph, quoted
 // there and in this file's sibling `App.tsx` nowhere — this is its one home
 // on the page, set apart in the accent per copy-final.md's own instruction
 // ("Set apart, in the accent, as the honest limit").

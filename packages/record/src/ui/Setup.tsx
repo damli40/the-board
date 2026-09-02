@@ -118,12 +118,25 @@ export function Setup({ onSave }: SetupProps) {
   const [rows, setRows] = useState<Record<Actor, FormRow>>(() => buildInitialRows(initialLoaded));
   const [roomCode, setRoomCode] = useState<string>(() => readStoredRoomCode());
   const [savedConfigs, setSavedConfigs] = useState<AgentConfigs>(initialLoaded);
-  // Open by default when no key is set anywhere yet; collapsed once one is —
-  // computed ONCE, from what was already on disk (sessionStorage) at mount.
+  // Open by default when no key is set anywhere yet; collapsed once one is,
+  // and collapsed when the URL itself arrived configured: `?code=` means the
+  // deployed panels hold their own key and the room code is in the link,
+  // `?offline=1` means scripted mode and no key is needed. Same parse as
+  // App.tsx's roomCodeParam, down to reading `code` for a truthy value rather
+  // than mere presence, so a bare `?code=` is treated as unconfigured there
+  // and here alike. Computed ONCE, from what was on disk at mount.
   // Deliberately not re-derived on every render: forcing the <details> open
   // state to track live edits would fight a viewer's own manual toggle the
   // next time this component re-renders for an unrelated reason.
-  const [open, setOpen] = useState<boolean>(() => Object.keys(initialLoaded).length === 0);
+  const [open, setOpen] = useState<boolean>(() => {
+    try {
+      const q = new URLSearchParams(globalThis.location?.search ?? '');
+      if (q.get('code') || q.get('offline') === '1') return false;
+    } catch {
+      // No location (tests): fall through to the storage rule.
+    }
+    return Object.keys(initialLoaded).length === 0;
+  });
   // Fix round 1, I5: this used to be one shared `justSaved` boolean, so
   // typing a key into Advocate A alone and pressing Save made all FOUR
   // rows flash `sent` — for the other three, the only thing actually sent

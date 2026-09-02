@@ -79,3 +79,28 @@ describe('App — the masthead clock never reads the live exhibit store', () => 
     });
   });
 });
+
+// The run block is only worth anything where a judge cannot miss it. A
+// RunIt-only test proves the block renders; it cannot prove App.tsx put it
+// between the masthead and the phase rail, which is the whole placement
+// argument. `compareDocumentPosition` asserts DOM order rather than pixels,
+// which is what a test in jsdom can honestly claim.
+describe('App — the run block sits between the masthead and the phase rail', () => {
+  afterEach(() => {
+    delete (document as unknown as { modelContext?: unknown }).modelContext;
+  });
+
+  it('renders after the masthead meta rows and before the phase rail', async () => {
+    (document as unknown as { modelContext?: unknown }).modelContext = new FakeModelContext();
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByTestId('run-it')).toBeInTheDocument());
+    const record = screen.getByTestId('masthead-record');
+    const runIt = screen.getByTestId('run-it');
+    const rail = screen.getByTestId('phase-rail');
+
+    // DOCUMENT_POSITION_FOLLOWING === 4: the argument comes after the node.
+    expect(record.compareDocumentPosition(runIt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(runIt.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
