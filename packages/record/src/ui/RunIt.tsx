@@ -119,15 +119,15 @@ export function RunIt() {
           </Step>
           <Step n={2}>
             <code style={codeStyle}>{CHROME}</code>
-            <span style={proseStyle}>Opens a throwaway Chrome with WebMCP switched on and this page loaded.</span>
+            <span style={proseStyle}>Opens a throwaway Chrome with WebMCP switched on and this page loaded. Work in that window from here on. This tab will not update.</span>
           </Step>
           <Step n={3}>
             <code style={codeStyle}>
-              <span style={{ color: 'var(--tb-ink-3)' }}>Claude Code: </span>
+              <span style={{ color: 'var(--tb-ink-3)', userSelect: 'none' }}>Claude Code: </span>
               {CLAUDE_CMD}
             </code>
             <code style={codeStyle}>
-              <span style={{ color: 'var(--tb-ink-3)' }}>Codex: </span>
+              <span style={{ color: 'var(--tb-ink-3)', userSelect: 'none' }}>Codex: </span>
               {CODEX_CMD}
             </code>
           </Step>
@@ -147,8 +147,8 @@ export function RunIt() {
           Open{' '}
           <a data-testid="run-it-offline-link" href={offlineHref()} style={linkStyle}>
             this page with <code style={{ fontFamily: 'var(--font-mono)' }}>?offline=1</code>
-          </a>{' '}
-          and all four panels run themselves.
+          </a>, type anything into the box at the top of this page and press Send to both. Both advocate panels then
+          run a fixed script. Each seat runs when you type into its own box.
         </p>
         <p data-testid="run-it-offline-caveat" style={proseStyle}>
           Every call still goes through the browser&rsquo;s own API, the per-origin scoping is real, and a refusal is a

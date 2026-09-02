@@ -44,8 +44,9 @@ like when it reaches your agent are in
 [Path C](#how-a-judge-runs-this-path-c-be-advocate-a-with-your-own-claude-code-or-codex).
 
 **Or watch it run with no setup.** Open
-[the record page with `?offline=1`](https://theboard-record.netlify.app/?offline=1) and all four
-panels run themselves. Every call still goes through the browser's own API, the per-origin scoping is
+[the record page with `?offline=1`](https://theboard-record.netlify.app/?offline=1), type anything
+into the box at the top and press Send to both. Both advocate panels then run a fixed script, and
+each seat runs when you type into its own box. Every call still goes through the browser's own API, the per-origin scoping is
 real, and a refusal is a real refusal. What a script decides is which tool each panel reaches for
 next and the example arguments it carries. Longer version:
 [Path A](#path-a-no-key-nothing-to-sign-up-for). To drive it with your own model key instead:
@@ -248,8 +249,8 @@ Nothing about the *boundary* is faked in this mode. Every call still goes throug
 API (`getTools()` / `executeTool()`); the browser's own scoping (`exposedTo`) is still fully
 enforced, so a call to a tool a panel doesn't hold fails for the same reason it would with a live
 model behind the wheel; and a call that breaks one of the case's own rules still gets a genuine
-`REFUSED:` line, not a scripted-looking placeholder. The only thing that's scripted is *which* tool a
-panel reaches for next — a fixed rule chooses instead of a model reading your instruction, and typing
+`REFUSED:` line, not a scripted-looking placeholder. What a script decides is *which* tool a
+panel reaches for next, and the example arguments it carries — a fixed rule chooses instead of a model reading your instruction, and typing
 your own text into a panel's box has no effect while this mode is on.
 
 ### Path B: your own model
